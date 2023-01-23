@@ -8,16 +8,17 @@ import warnings
 
 import torch
 import torch.nn as nn
-from torchvision.models.utils import load_state_dict_from_url
+# from torchvision.models.utils import load_state_dict_from_url
+from torch.hub import load_state_dict_from_url
 
 __all__ = ['MNASNet', 'mnasnet0_5', 'mnasnet0_75', 'mnasnet1_0', 'mnasnet1_3']
 
 _MODEL_URLS = {
     "mnasnet0_5":
-    "https://download.pytorch.org/models/mnasnet0.5_top1_67.823-3ffadce67e.pth",
+        "https://download.pytorch.org/models/mnasnet0.5_top1_67.823-3ffadce67e.pth",
     "mnasnet0_75": None,
     "mnasnet1_0":
-    "https://download.pytorch.org/models/mnasnet1.0_top1_73.512-f206786ef8.pth",
+        "https://download.pytorch.org/models/mnasnet1.0_top1_73.512-f206786ef8.pth",
     "mnasnet1_3": None
 }
 

@@ -10,7 +10,7 @@ import numpy as np
 
 from .cityscapes import Cityscapes
 from .utils import DatasetDescriptor
-from ..transforms import build_transforms, PanopticTargetGenerator, SemanticTargetGenerator
+from ..transforms import build_transforms, PanopticTargetGenerator, SemanticTargetGenerator, Resize
 
 _CITYSCAPES_INFORMATION = DatasetDescriptor(
     splits_to_sizes={'train': 2975,
@@ -47,6 +47,7 @@ class CityscapesPanoptic(Cityscapes):
         small_instance_area: Integer, indicates largest area for small instances.
         small_instance_weight: Integer, indicates semantic loss weights for small instances.
     """
+
     def __init__(self,
                  root,
                  split,
@@ -62,6 +63,7 @@ class CityscapesPanoptic(Cityscapes):
                  ignore_stuff_in_offset=False,
                  small_instance_area=0,
                  small_instance_weight=1,
+                 custom_frame_size=None,
                  **kwargs):
         super(CityscapesPanoptic, self).__init__(root, split, is_train, crop_size, mirror, min_scale, max_scale,
                                                  scale_step_size, mean, std)
@@ -98,6 +100,10 @@ class CityscapesPanoptic(Cityscapes):
                 self.ins_list.append(ann['segments_info'])
 
         assert len(self) == _CITYSCAPES_INFORMATION.splits_to_sizes[self.split]
+
+        if custom_frame_size:
+            self.pre_augmentation_transform = Resize(min_resize_value=custom_frame_size[0],
+                                                     max_resize_value=custom_frame_size[1])
 
         self.transform = build_transforms(self, is_train)
         if semantic_only:

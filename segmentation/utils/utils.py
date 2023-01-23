@@ -7,6 +7,7 @@ import torch
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self):
         self.reset()
 
@@ -31,6 +32,13 @@ def get_loss_info_str(loss_meter_dict):
         )
 
     return msg
+
+
+def get_loss_info_dict(loss_meter_dict):
+    info = {}
+    for key in loss_meter_dict.keys():
+        info[key] = loss_meter_dict[key].val
+    return info
 
 
 def to_cuda(batch, device):

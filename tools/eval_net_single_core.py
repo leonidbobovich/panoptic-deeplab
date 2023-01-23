@@ -7,31 +7,32 @@
 
 import argparse
 import cv2
+import logging
+import numpy as np
 import os
 import pprint
-import logging
 import time
-
-import numpy as np
 import torch
-import torch.nn.functional as F
 import torch.backends.cudnn as cudnn
-
-import _init_paths
+import torch.nn.functional as F
+from datetime import datetime
 from fvcore.common.file_io import PathManager
+
 from segmentation.config import config, update_config
-from segmentation.utils.logger import setup_logger
-from segmentation.model import build_segmentation_model_from_cfg
-from segmentation.data import build_train_loader_from_cfg, build_test_loader_from_cfg
-from segmentation.utils import save_debug_images
-from segmentation.utils import AverageMeter
-from segmentation.model.post_processing import get_semantic_segmentation, get_panoptic_segmentation
-from segmentation.utils import save_annotation, save_instance_annotation, save_panoptic_annotation
+from segmentation.data import build_test_loader_from_cfg
 from segmentation.evaluation import (
     SemanticEvaluator, CityscapesInstanceEvaluator, CityscapesPanopticEvaluator,
     COCOInstanceEvaluator, COCOPanopticEvaluator)
+from segmentation.model import build_segmentation_model_from_cfg
 from segmentation.model.post_processing import get_cityscapes_instance_format
+from segmentation.model.post_processing import get_semantic_segmentation, get_panoptic_segmentation
+from segmentation.utils import AverageMeter
+from segmentation.utils import save_annotation, save_instance_annotation, save_panoptic_annotation
+from segmentation.utils import save_debug_images
+from segmentation.utils.logger import setup_logger
 from segmentation.utils.test_utils import multi_scale_inference
+
+logger = logging.getLogger('segmentation')
 
 
 def parse_args():
@@ -46,6 +47,9 @@ def parse_args():
                         default=None,
                         nargs=argparse.REMAINDER)
 
+    parser.add_argument('--opt-model', default='', type=str, metavar='MODEL',
+                        help='Path to optimize model (default: "")')
+
     args = parser.parse_args()
     update_config(config, args)
 
@@ -55,10 +59,9 @@ def parse_args():
 def main():
     args = parse_args()
 
-    logger = logging.getLogger('segmentation_test')
+    output_dir = os.path.join(config.OUTPUT_DIR, "test_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
     if not logger.isEnabledFor(logging.INFO):  # setup_logger is not called
-        setup_logger(output=config.OUTPUT_DIR, name='segmentation_test')
-
+        setup_logger(output=output_dir)
     logger.info(pprint.pformat(args))
     logger.info(config)
 
@@ -71,8 +74,13 @@ def main():
         raise ValueError('Test only supports single core.')
     device = torch.device('cuda:{}'.format(gpus[0]))
 
-    # build model
-    model = build_segmentation_model_from_cfg(config)
+    if args.opt_model:
+        # load model
+        model = torch.load(args.opt_model, map_location='cpu')
+        logger.info(f"Load: {args.opt_model}")
+    else:
+        # build model
+        model = build_segmentation_model_from_cfg(config)
 
     # Change ASPP image pooling
     output_stride = 2 ** (5 - sum(config.MODEL.BACKBONE.DILATION))
@@ -177,7 +185,7 @@ def main():
     if config.TEST.DEBUG:
         debug_out_dir = os.path.join(config.OUTPUT_DIR, 'debug_test')
         PathManager.mkdirs(debug_out_dir)
-    
+
     if not config.TEST.TEST_TIME_AUGMENTATION:
         if config.TEST.FLIP_TEST or len(config.TEST.SCALE_LIST) > 1:
             config.TEST.TEST_TIME_AUGMENTATION = True
@@ -267,7 +275,7 @@ def main():
                             'Data Time: {data_time.val:.3f}s ({data_time.avg:.3f}s)\t'
                             'Network Time: {net_time.val:.3f}s ({net_time.avg:.3f}s)\t'
                             'Post-processing Time: {post_time.val:.3f}s ({post_time.avg:.3f}s)\t'.format(
-                             i, len(data_loader), data_time=data_time, net_time=net_time, post_time=post_time))
+                    i, len(data_loader), data_time=data_time, net_time=net_time, post_time=post_time))
 
                 semantic_pred = semantic_pred.squeeze(0).cpu().numpy()
                 if panoptic_pred is not None:
@@ -286,14 +294,14 @@ def main():
                 # Resize back to the raw image size.
                 raw_image_size = data['raw_size'].squeeze(0).cpu().numpy()
                 if raw_image_size[0] != image_size[0] or raw_image_size[1] != image_size[1]:
-                    semantic_pred = cv2.resize(semantic_pred.astype(np.float), (raw_image_size[1], raw_image_size[0]),
+                    semantic_pred = cv2.resize(semantic_pred.astype(float), (raw_image_size[1], raw_image_size[0]),
                                                interpolation=cv2.INTER_NEAREST).astype(np.int32)
                     if panoptic_pred is not None:
-                        panoptic_pred = cv2.resize(panoptic_pred.astype(np.float),
+                        panoptic_pred = cv2.resize(panoptic_pred.astype(float),
                                                    (raw_image_size[1], raw_image_size[0]),
                                                    interpolation=cv2.INTER_NEAREST).astype(np.int32)
                     if foreground_pred is not None:
-                        foreground_pred = cv2.resize(foreground_pred.astype(np.float),
+                        foreground_pred = cv2.resize(foreground_pred.astype(float),
                                                      (raw_image_size[1], raw_image_size[0]),
                                                      interpolation=cv2.INTER_NEAREST).astype(np.int32)
 

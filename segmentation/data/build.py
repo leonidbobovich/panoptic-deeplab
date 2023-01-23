@@ -56,7 +56,8 @@ def build_dataset_from_cfg(config, is_train=True):
             semantic_only=config.DATASET.SEMANTIC_ONLY,
             ignore_stuff_in_offset=config.DATASET.IGNORE_STUFF_IN_OFFSET,
             small_instance_area=config.DATASET.SMALL_INSTANCE_AREA,
-            small_instance_weight=config.DATASET.SMALL_INSTANCE_WEIGHT
+            small_instance_weight=config.DATASET.SMALL_INSTANCE_WEIGHT,
+            custom_frame_size=config.DATASET.PRE_AUG,
         ),
         'coco_panoptic': dict(
             root=config.DATASET.ROOT,
@@ -120,12 +121,24 @@ def build_train_loader_from_cfg(config):
     batch_sampler = torch.utils.data.sampler.BatchSampler(
         sampler, images_per_worker, drop_last=True
     )
+
+    def collate_fn(instances):
+        batch = {}
+        for key in (instances[0]):
+            if torch.is_tensor(instances[0][key]):
+                batch[key] = torch.stack([instance[key] for instance in instances])
+            else:
+                batch[key] = [instance[key] for instance in instances]
+
+        return batch
+
     # drop_last so the batch always have the same size
     data_loader = torch.utils.data.DataLoader(
         dataset,
         num_workers=config.DATALOADER.NUM_WORKERS,
         batch_sampler=batch_sampler,
         worker_init_fn=worker_init_reset_seed,
+        collate_fn=collate_fn
     )
 
     return data_loader
