@@ -236,7 +236,7 @@ _C.DATALOADER = CN()
 
 _C.DATALOADER.SAMPLER_TRAIN = 'TrainingSampler'
 _C.DATALOADER.TRAIN_SHUFFLE = True
-
+_C.DATALOADER.PIN_MEMORY = False
 _C.DATALOADER.NUM_WORKERS = 4
 
 # -----------------------------------------------------------------------------

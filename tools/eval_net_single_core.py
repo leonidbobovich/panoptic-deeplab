@@ -101,7 +101,7 @@ def main():
     if config.TEST.MODEL_FILE:
         model_state_file = config.TEST.MODEL_FILE
     else:
-        model_state_file = os.path.join(config.OUTPUT_DIR, 'final_state.pth')
+        model_state_file = os.path.join(output_dir, 'final_state.pth')
 
     if os.path.isfile(model_state_file):
         model_weights = torch.load(model_state_file)
@@ -122,7 +122,7 @@ def main():
     semantic_metric = SemanticEvaluator(
         num_classes=data_loader.dataset.num_classes,
         ignore_label=data_loader.dataset.ignore_label,
-        output_dir=os.path.join(config.OUTPUT_DIR, config.TEST.SEMANTIC_FOLDER),
+        output_dir=os.path.join(output_dir, config.TEST.SEMANTIC_FOLDER),
         train_id_to_eval_id=data_loader.dataset.train_id_to_eval_id()
     )
 
@@ -132,13 +132,13 @@ def main():
     if config.TEST.EVAL_INSTANCE:
         if 'cityscapes' in config.DATASET.DATASET:
             instance_metric = CityscapesInstanceEvaluator(
-                output_dir=os.path.join(config.OUTPUT_DIR, config.TEST.INSTANCE_FOLDER),
+                output_dir=os.path.join(output_dir, config.TEST.INSTANCE_FOLDER),
                 train_id_to_eval_id=data_loader.dataset.train_id_to_eval_id(),
                 gt_dir=os.path.join(config.DATASET.ROOT, 'gtFine', config.DATASET.TEST_SPLIT)
             )
         elif 'coco' in config.DATASET.DATASET:
             instance_metric = COCOInstanceEvaluator(
-                output_dir=os.path.join(config.OUTPUT_DIR, config.TEST.INSTANCE_FOLDER),
+                output_dir=os.path.join(output_dir, config.TEST.INSTANCE_FOLDER),
                 train_id_to_eval_id=data_loader.dataset.train_id_to_eval_id(),
                 gt_dir=os.path.join(config.DATASET.ROOT, 'annotations',
                                     'instances_{}.json'.format(config.DATASET.TEST_SPLIT))
@@ -149,7 +149,7 @@ def main():
     if config.TEST.EVAL_PANOPTIC:
         if 'cityscapes' in config.DATASET.DATASET:
             panoptic_metric = CityscapesPanopticEvaluator(
-                output_dir=os.path.join(config.OUTPUT_DIR, config.TEST.PANOPTIC_FOLDER),
+                output_dir=os.path.join(output_dir, config.TEST.PANOPTIC_FOLDER),
                 train_id_to_eval_id=data_loader.dataset.train_id_to_eval_id(),
                 label_divisor=data_loader.dataset.label_divisor,
                 void_label=data_loader.dataset.label_divisor * data_loader.dataset.ignore_label,
@@ -159,7 +159,7 @@ def main():
             )
         elif 'coco' in config.DATASET.DATASET:
             panoptic_metric = COCOPanopticEvaluator(
-                output_dir=os.path.join(config.OUTPUT_DIR, config.TEST.PANOPTIC_FOLDER),
+                output_dir=os.path.join(output_dir, config.TEST.PANOPTIC_FOLDER),
                 train_id_to_eval_id=data_loader.dataset.train_id_to_eval_id(),
                 label_divisor=data_loader.dataset.label_divisor,
                 void_label=data_loader.dataset.label_divisor * data_loader.dataset.ignore_label,
@@ -175,7 +175,7 @@ def main():
         foreground_metric = SemanticEvaluator(
             num_classes=2,
             ignore_label=data_loader.dataset.ignore_label,
-            output_dir=os.path.join(config.OUTPUT_DIR, config.TEST.FOREGROUND_FOLDER)
+            output_dir=os.path.join(output_dir, config.TEST.FOREGROUND_FOLDER)
         )
 
     image_filename_list = [
@@ -183,7 +183,7 @@ def main():
 
     # Debug output.
     if config.TEST.DEBUG:
-        debug_out_dir = os.path.join(config.OUTPUT_DIR, 'debug_test')
+        debug_out_dir = os.path.join(output_dir, 'debug_test')
         PathManager.mkdirs(debug_out_dir)
 
     if not config.TEST.TEST_TIME_AUGMENTATION:

@@ -138,7 +138,8 @@ def build_train_loader_from_cfg(config):
         num_workers=config.DATALOADER.NUM_WORKERS,
         batch_sampler=batch_sampler,
         worker_init_fn=worker_init_reset_seed,
-        collate_fn=collate_fn
+        collate_fn=collate_fn,
+        pin_memory=config.DATALOADER.PIN_MEMORY
     )
 
     return data_loader
@@ -163,6 +164,7 @@ def build_test_loader_from_cfg(config):
         dataset,
         num_workers=config.DATALOADER.NUM_WORKERS,
         batch_sampler=batch_sampler,
+        pin_memory=config.DATALOADER.PIN_MEMORY
     )
 
     return data_loader
