@@ -49,6 +49,8 @@ def parse_args():
 
     parser.add_argument('--opt-model', default='', type=str, metavar='MODEL',
                         help='Path to optimize model (default: "")')
+    parser.add_argument('--opt-weights', default='', type=str, metavar='MODEL',
+                        help='Path to optimize weights (default: "")')
 
     args = parser.parse_args()
     update_config(config, args)
@@ -97,14 +99,9 @@ def main():
     # build data_loader
     data_loader = build_test_loader_from_cfg(config)
 
-    # load model
-    if config.TEST.MODEL_FILE:
-        model_state_file = config.TEST.MODEL_FILE
-    else:
-        model_state_file = os.path.join(output_dir, 'final_state.pth')
-
-    if os.path.isfile(model_state_file):
-        model_weights = torch.load(model_state_file)
+    # optional update model weights
+    if os.path.isfile(args.opt_weights):
+        model_weights = torch.load(args.opt_weights)
         if 'state_dict' in model_weights.keys():
             model_weights = model_weights['state_dict']
             logger.info('Evaluating a intermediate checkpoint.')
