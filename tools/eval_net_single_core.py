@@ -106,7 +106,7 @@ def main():
             model_weights = model_weights['state_dict']
             logger.info('Evaluating a intermediate checkpoint.')
         model.load_state_dict(model_weights, strict=True)
-        logger.info('Test model loaded from {}'.format(model_state_file))
+        logger.info('Test model loaded from {}'.format(args.opt_weights))
     else:
         if not config.DEBUG.DEBUG:
             raise ValueError('Cannot find test model.')
