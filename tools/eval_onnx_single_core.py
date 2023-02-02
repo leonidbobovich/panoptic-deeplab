@@ -73,14 +73,14 @@ def main():
     gpus = list(config.TEST.GPUS)
     if len(gpus) > 1:
         raise ValueError('Test only supports single core.')
-    device = torch.device('cuda:{}'.format(gpus[0]))
+    device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-    # providers = ['CPUExecutionProvider', ]  # if device == 'cpu' else ['CUDAExecutionProvider', ]
-    providers = ['CPUExecutionProvider', ]
+    # create inference session
+    providers = ['CUDAExecutionProvider', ] if device == 'cuda' else ['CPUExecutionProvider', ]
     options = ort.SessionOptions()
     options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    onnx_session = ort.InferenceSession(args.opt_model, options=options, providers=providers)
+    onnx_session = ort.InferenceSession(args.opt_model, sess_options=options, providers=providers)
 
     # build data_loader
     data_loader = build_test_loader_from_cfg(config)
@@ -181,11 +181,15 @@ def main():
                     pass
 
             image = data.pop('image')
-            torch.cuda.synchronize(device)
+            try:
+                torch.cuda.synchronize(device)
+            except:
+                pass
             data_time.update(time.time() - start_time)
 
             start_time = time.time()
 
+            # run onnx session
             onnx_inputs = {"input": image.cpu().numpy()}
             out_list = onnx_session.run(None, onnx_inputs)
             out_dict = {"semantic": out_list[0], "center": out_list[1], "offset": out_list[2]}
@@ -195,7 +199,10 @@ def main():
                                                  size=onnx_inputs["input"].shape[-2:],
                                                  mode='bilinear',
                                                  align_corners=True)
-            torch.cuda.synchronize(device)
+            try:
+                torch.cuda.synchronize(device)
+            except:
+                pass
             net_time.update(time.time() - start_time)
 
             start_time = time.time()
@@ -242,7 +249,10 @@ def main():
                     foreground_mask=foreground_pred)
             else:
                 panoptic_pred = None
-            torch.cuda.synchronize(device)
+            try:
+                torch.cuda.synchronize(device)
+            except:
+                pass
             post_time.update(time.time() - start_time)
             logger.info('[{}/{}]\t'
                         'Data Time: {data_time.val:.3f}s ({data_time.avg:.3f}s)\t'
