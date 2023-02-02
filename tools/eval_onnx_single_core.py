@@ -9,7 +9,6 @@ import argparse
 import cv2
 import logging
 import numpy as np
-import onnx
 import onnxruntime as ort
 import os
 import pprint
@@ -25,14 +24,12 @@ from segmentation.data import build_test_loader_from_cfg
 from segmentation.evaluation import (
     SemanticEvaluator, CityscapesInstanceEvaluator, CityscapesPanopticEvaluator,
     COCOInstanceEvaluator, COCOPanopticEvaluator)
-from segmentation.model import build_segmentation_model_from_cfg
 from segmentation.model.post_processing import get_cityscapes_instance_format
 from segmentation.model.post_processing import get_semantic_segmentation, get_panoptic_segmentation
 from segmentation.utils import AverageMeter
 from segmentation.utils import save_annotation, save_instance_annotation, save_panoptic_annotation
 from segmentation.utils import save_debug_images
 from segmentation.utils.logger import setup_logger
-from segmentation.utils.test_utils import multi_scale_inference
 
 logger = logging.getLogger('segmentation')
 
@@ -96,7 +93,7 @@ def main():
     semantic_metric = SemanticEvaluator(
         num_classes=data_loader.dataset.num_classes,
         ignore_label=data_loader.dataset.ignore_label,
-        output_dir=os.path.join(output_dir, config.TEST.SEMANTIC_FOLDER),
+        output_dir=None,  # os.path.join(output_dir, config.TEST.SEMANTIC_FOLDER),
         train_id_to_eval_id=data_loader.dataset.train_id_to_eval_id()
     )
 
@@ -194,8 +191,10 @@ def main():
             out_dict = {"semantic": out_list[0], "center": out_list[1], "offset": out_list[2]}
             out_dict["center"] = torch.from_numpy(out_dict["center"])
             out_dict["offset"] = torch.from_numpy(out_dict["offset"])
-            out_dict["semantic"] = torch.from_numpy(out_dict["semantic"])
-
+            out_dict["semantic"] = F.interpolate(torch.from_numpy(out_dict["semantic"]),
+                                                 size=onnx_inputs["input"].shape[-2:],
+                                                 mode='bilinear',
+                                                 align_corners=True)
             torch.cuda.synchronize(device)
             net_time.update(time.time() - start_time)
 

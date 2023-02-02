@@ -144,3 +144,4 @@ inference_test_output
 *.diff
 
 *.pth
+/models/
