@@ -8,7 +8,7 @@ import logging
 import torch
 import numpy as np
 
-from .datasets import Cityscapes, CityscapesPanoptic, COCOPanoptic
+from .datasets import Cityscapes, CityscapesPanoptic, COCOPanoptic, CityscapesPanopticTF
 from . import samplers
 from segmentation.utils.comm import get_world_size
 from segmentation.utils.env import seed_all_rng
@@ -27,6 +27,7 @@ def build_dataset_from_cfg(config, is_train=True):
         'cityscapes': Cityscapes,
         'cityscapes_panoptic': CityscapesPanoptic,
         'coco_panoptic': COCOPanoptic,
+        'cityscapes_panoptic_tf': CityscapesPanopticTF
     }
 
     dataset_cfg = {
@@ -79,6 +80,8 @@ def build_dataset_from_cfg(config, is_train=True):
             small_instance_weight=config.DATASET.SMALL_INSTANCE_WEIGHT
         ),
     }
+
+    dataset_cfg['cityscapes_panoptic_tf'] = dataset_cfg['cityscapes_panoptic']
 
     dataset = dataset_map[config.DATASET.DATASET](
         **dataset_cfg[config.DATASET.DATASET]

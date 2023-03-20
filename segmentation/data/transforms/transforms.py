@@ -55,6 +55,15 @@ class Normalize(object):
         return image, label
 
 
+class TF_Normalize(object):
+    """
+    Normalizes image by mean and std.
+    """
+    def __call__(self, image, label):
+        image = image / 0.5 - 1
+        return image, label
+
+
 class RandomScale(object):
     """
     Applies random scale augmentation.

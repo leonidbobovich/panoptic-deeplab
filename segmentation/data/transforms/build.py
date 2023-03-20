@@ -55,3 +55,12 @@ def build_transforms(dataset, is_train=True):
     )
 
     return transforms
+
+
+def build_tf_transforms():
+    return T.Compose(
+        [
+            T.ToTensor(),
+            T.TF_Normalize()
+        ]
+    )

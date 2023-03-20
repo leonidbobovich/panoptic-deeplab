@@ -10,7 +10,7 @@ import numpy as np
 
 from .cityscapes import Cityscapes
 from .utils import DatasetDescriptor
-from ..transforms import build_transforms, PanopticTargetGenerator, SemanticTargetGenerator, Resize
+from ..transforms import build_transforms, PanopticTargetGenerator, SemanticTargetGenerator, Resize, build_tf_transforms
 
 _CITYSCAPES_INFORMATION = DatasetDescriptor(
     splits_to_sizes={'train': 2975,
@@ -134,3 +134,47 @@ class CityscapesPanoptic(Cityscapes):
                 color = color.astype(np.int32)
             return color[:, :, 0] + 256 * color[:, :, 1] + 256 * 256 * color[:, :, 2]
         return int(color[0] + 256 * color[1] + 256 * 256 * color[2])
+
+
+class CityscapesPanopticTF(CityscapesPanoptic):
+    """
+    Cityscapes panoptic segmentation dataset.
+    Arguments:
+        root: Str, root directory.
+        split: Str, data split, e.g. train/val/test.
+        is_train: Bool, for training or testing.
+        crop_size: Tuple, crop size.
+        mirror: Bool, whether to apply random horizontal flip.
+        min_scale: Float, min scale in scale augmentation.
+        max_scale: Float, max scale in scale augmentation.
+        scale_step_size: Float, step size to select random scale.
+        mean: Tuple, image mean.
+        std: Tuple, image std.
+        semantic_only: Bool, only use semantic segmentation label.
+        ignore_stuff_in_offset: Boolean, whether to ignore stuff region when training the offset branch.
+        small_instance_area: Integer, indicates largest area for small instances.
+        small_instance_weight: Integer, indicates semantic loss weights for small instances.
+    """
+
+    def __init__(self,
+                 root,
+                 split,
+                 is_train=True,
+                 crop_size=(513, 1025),
+                 mirror=True,
+                 min_scale=0.5,
+                 max_scale=2.,
+                 scale_step_size=0.25,
+                 mean=(0.485, 0.456, 0.406),
+                 std=(0.229, 0.224, 0.225),
+                 semantic_only=False,
+                 ignore_stuff_in_offset=False,
+                 small_instance_area=0,
+                 small_instance_weight=1,
+                 custom_frame_size=None,
+                 **kwargs):
+        super(CityscapesPanopticTF, self).__init__(root, split, is_train, crop_size, mirror, min_scale, max_scale,
+                                                   scale_step_size, mean, std, semantic_only, ignore_stuff_in_offset,
+                                                   small_instance_area, small_instance_weight, custom_frame_size)
+
+        self.transform = build_tf_transforms()
