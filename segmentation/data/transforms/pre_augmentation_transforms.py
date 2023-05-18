@@ -87,6 +87,6 @@ class Resize(object):
         image_dtype = image.dtype
         label_dtype = label.dtype
         # cv2: (width, height)
-        image = cv2.resize(image.astype(np.float), (new_size[1], new_size[0]), interpolation=cv2.INTER_LINEAR)
-        label = cv2.resize(label.astype(np.float), (new_size[1], new_size[0]), interpolation=cv2.INTER_NEAREST)
+        image = cv2.resize(image.astype(np.float32), (new_size[1], new_size[0]), interpolation=cv2.INTER_LINEAR)
+        label = cv2.resize(label.astype(np.float32), (new_size[1], new_size[0]), interpolation=cv2.INTER_NEAREST)
         return image.astype(image_dtype), label.astype(label_dtype)

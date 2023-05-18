@@ -55,8 +55,8 @@ class SemanticEvaluator:
         return converted_prediction
 
     def update(self, pred, gt, image_filename=None):
-        pred = pred.astype(np.int)
-        gt = gt.astype(np.int)
+        pred = pred.astype(np.int32)
+        gt = gt.astype(np.int32)
         gt[gt == self._ignore_label] = self._num_classes
 
         self._conf_matrix += np.bincount(
@@ -79,12 +79,12 @@ class SemanticEvaluator:
         * Mean pixel accuracy averaged across classes (mACC)
         * Pixel Accuracy (pACC)
         """
-        acc = np.zeros(self._num_classes, dtype=np.float)
-        iou = np.zeros(self._num_classes, dtype=np.float)
-        tp = self._conf_matrix.diagonal()[:-1].astype(np.float)
-        pos_gt = np.sum(self._conf_matrix[:-1, :-1], axis=0).astype(np.float)
+        acc = np.zeros(self._num_classes, dtype=np.float32)
+        iou = np.zeros(self._num_classes, dtype=np.float32)
+        tp = self._conf_matrix.diagonal()[:-1].astype(np.float32)
+        pos_gt = np.sum(self._conf_matrix[:-1, :-1], axis=0).astype(np.float32)
         class_weights = pos_gt / np.sum(pos_gt)
-        pos_pred = np.sum(self._conf_matrix[:-1, :-1], axis=1).astype(np.float)
+        pos_pred = np.sum(self._conf_matrix[:-1, :-1], axis=1).astype(np.float32)
         acc_valid = pos_gt > 0
         acc[acc_valid] = tp[acc_valid] / pos_gt[acc_valid]
         iou_valid = (pos_gt + pos_pred) > 0

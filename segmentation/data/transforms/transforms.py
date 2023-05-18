@@ -111,8 +111,8 @@ class RandomScale(object):
         # TODO: use fvcore (https://github.com/facebookresearch/fvcore/blob/master/fvcore/transforms/transform.py#L377)
         image_dtype = image.dtype
         label_dtype = label.dtype
-        image = cv2.resize(image.astype(np.float), None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_LINEAR)
-        label = cv2.resize(label.astype(np.float), None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_NEAREST)
+        image = cv2.resize(image.astype(np.float32), None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_LINEAR)
+        label = cv2.resize(label.astype(np.float32), None, fx=f_scale, fy=f_scale, interpolation=cv2.INTER_NEAREST)
         return image.astype(image_dtype), label.astype(label_dtype)
 
 

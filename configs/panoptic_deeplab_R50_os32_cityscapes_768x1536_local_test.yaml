@@ -23,7 +23,7 @@ MODEL:
       NUM_CLASSES: (1, 2)
       CLASS_KEY: [ "center", "offset" ]
 DATASET:
-  ROOT: "/data/datasets/cityscapes"
+  ROOT: "datasets/cityscapes"
   DATASET: "cityscapes_panoptic"
   NUM_CLASSES: 19
   TRAIN_SPLIT: 'train'
@@ -68,8 +68,9 @@ DEBUG:
   DEBUG: True
   DEBUG_FREQ: 500
 TEST:
-  EVAL_INSTANCE: True
-  EVAL_PANOPTIC: True
+  DEBUG: False
+  EVAL_INSTANCE: False
+  EVAL_PANOPTIC: False
   CROP_SIZE: (768, 1536)
 POST_PROCESSING:
   CENTER_THRESHOLD: 0.1
@@ -78,7 +79,7 @@ POST_PROCESSING:
   STUFF_AREA: 2048
 DATALOADER:
   PIN_MEMORY: False
-  NUM_WORKERS: 4
+  NUM_WORKERS: 0
 OUTPUT_DIR: "./output/768x1536"
 GPUS: (0, )
 CKPT_FREQ: 1000

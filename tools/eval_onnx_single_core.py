@@ -6,6 +6,8 @@
 # ------------------------------------------------------------------------------
 
 import argparse
+import sys
+
 import cv2
 import logging
 import numpy as np
@@ -73,10 +75,15 @@ def main():
     gpus = list(config.TEST.GPUS)
     if len(gpus) > 1:
         raise ValueError('Test only supports single core.')
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'mps' if torch.has_mps else ( 'cuda' if torch.cuda.is_available() else 'cpu' )
 
     # create inference session
     providers = ['CUDAExecutionProvider', ] if device == 'cuda' else ['CPUExecutionProvider', ]
+    if device == 'mps' and 'CoreMLExecutionProvider' in ort.get_available_providers():
+        providers = ['CoreMLExecutionProvider', ]
+    # device = 'cpu'
+    # providers = ['CPUExecutionProvider', ]
+
     options = ort.SessionOptions()
     options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
@@ -167,6 +174,8 @@ def main():
     # Train loop.
     try:
         for i, data in enumerate(data_loader):
+            # if i == 1:
+            #     break
             if i == timing_warmup_iter:
                 data_time.reset()
                 net_time.reset()
@@ -181,22 +190,53 @@ def main():
                     pass
 
             image = data.pop('image')
-            try:
-                torch.cuda.synchronize(device)
-            except:
-                pass
+            if torch.cuda.is_available():
+                try:
+                    torch.cuda.synchronize(device)
+                except:
+                    pass
             data_time.update(time.time() - start_time)
 
             start_time = time.time()
+            #image = image * 256 / 127.5 - 1
+            #BMW_base_768_1536_sim.onnx {'mIoU': 75.48262947484066, 'fwIoU': 92.23071932792664, 'mACC': 83.37469100952148, 'pACC': 95.8065927028656}
+            #PanDeepLab_Model1_sim.onnx {'mIoU': 75.49928865934673, 'fwIoU': 91.99857711791992, 'mACC': 83.4284079702277, 'pACC': 95.6729531288147}
+            #PanDeepLab_Model2_sim.onnx {'mIoU': 75.1311653538754, 'fwIoU': 91.78708791732788, 'mACC': 84.01618254812139, 'pACC': 95.5343246459961}
 
+            permute = True
             # run onnx session
-            onnx_inputs = {"input": image.cpu().numpy()}
+            if permute:
+                image = image * 256 / 127.5 - 1  # The best
+                onnx_inputs = {"input": torch.permute(image, [0, 2, 3, 1]).cpu().numpy()}
+            else:
+                onnx_inputs = {"input": image.cpu().numpy()}
+
             out_list = onnx_session.run(None, onnx_inputs)
-            out_dict = {"semantic": out_list[0], "center": out_list[1], "offset": out_list[2]}
-            out_dict["center"] = torch.from_numpy(out_dict["center"])
-            out_dict["offset"] = torch.from_numpy(out_dict["offset"])
-            out_dict["semantic"] = F.interpolate(torch.from_numpy(out_dict["semantic"]),
-                                                 size=onnx_inputs["input"].shape[-2:],
+            semantic = -1
+            offset = -1
+            center = -1
+            for j in range(3):
+                out_list[j] = torch.from_numpy(out_list[j])
+                if permute:
+                    out_list[j] = torch.permute(out_list[j], [0, 3, 1, 2])
+                if out_list[j].shape[1] == 1:
+                    center = j
+                if out_list[j].shape[1] == 2:
+                    offset = j
+                if out_list[j].shape[1] == 19:
+                    semantic = j
+
+            out_dict = {"semantic": out_list[semantic], "center": out_list[center], "offset": out_list[offset]}
+            out_dict["semantic"] = F.interpolate(out_dict["semantic"],
+                                                 size=image.shape[-2:],
+                                                 mode='bilinear',
+                                                 align_corners=True)
+            out_dict["offset"] = F.interpolate(out_dict["offset"],
+                                                 size=image.shape[-2:],
+                                                 mode='bilinear',
+                                                 align_corners=True)
+            out_dict["center"] = F.interpolate(out_dict["center"],
+                                                 size=image.shape[-2:],
                                                  mode='bilinear',
                                                  align_corners=True)
             try:
@@ -249,10 +289,12 @@ def main():
                     foreground_mask=foreground_pred)
             else:
                 panoptic_pred = None
-            try:
-                torch.cuda.synchronize(device)
-            except:
-                pass
+
+            if torch.cuda.is_available():
+                try:
+                    torch.cuda.synchronize(device)
+                except:
+                    pass
             post_time.update(time.time() - start_time)
             logger.info('[{}/{}]\t'
                         'Data Time: {data_time.val:.3f}s ({data_time.avg:.3f}s)\t'
@@ -372,6 +414,7 @@ def main():
                     save_panoptic_annotation(panoptic_pred, debug_out_dir, 'panoptic_pred_%d' % i,
                                              label_divisor=data_loader.dataset.label_divisor,
                                              colormap=data_loader.dataset.create_label_colormap())
+
     except Exception:
         logger.exception("Exception during testing:")
         raise
@@ -392,3 +435,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+    sys.exit(0)
