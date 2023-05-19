@@ -50,8 +50,6 @@ def parse_args():
 
     parser.add_argument('--opt-model', default='', type=str, metavar='MODEL', required=True,
                         help='Path to optimize model (default: "")')
-    parser.add_argument('--opt-weights', default='', type=str, metavar='MODEL',
-                        help='Path to optimize weights (default: "")')
 
     args = parser.parse_args()
     update_config(config, args)
