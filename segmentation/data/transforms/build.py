@@ -47,10 +47,10 @@ def build_transforms(dataset, is_train=True):
             ),
             T.RandomHorizontalFlip(flip_prob),
             T.ToTensor(),
-            # T.Normalize(
-            #     mean,
-            #     std
-            # )
+            T.Normalize(
+                mean,
+                std
+            )
         ]
     )
 
