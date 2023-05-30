@@ -4,15 +4,16 @@
 # python tools/test_net_single_core.py --cfg PATH_TO_CONFIG_FILE
 # Written by Bowen Cheng (bcheng9@illinois.edu)
 # ------------------------------------------------------------------------------
+import numpy
 
+import _init_paths
 import argparse
-import sys
-
 import cv2
 import logging
 import numpy as np
 import onnxruntime as ort
 import os
+import sys
 import pprint
 import time
 import torch
@@ -22,7 +23,7 @@ from datetime import datetime
 from fvcore.common.file_io import PathManager
 
 from segmentation.config import config, update_config
-from segmentation.data import build_test_loader_from_cfg
+from segmentation.data import build_test_loader_from_cfg, build_train_loader_from_cfg
 from segmentation.evaluation import (
     SemanticEvaluator, CityscapesInstanceEvaluator, CityscapesPanopticEvaluator,
     COCOInstanceEvaluator, COCOPanopticEvaluator)
@@ -32,6 +33,8 @@ from segmentation.utils import AverageMeter
 from segmentation.utils import save_annotation, save_instance_annotation, save_panoptic_annotation
 from segmentation.utils import save_debug_images
 from segmentation.utils.logger import setup_logger
+
+from segmentation.data.transforms.build import set_permute
 
 logger = logging.getLogger('segmentation')
 
@@ -47,8 +50,9 @@ def parse_args():
                         help="Modify config options using the command-line",
                         default=None,
                         nargs=argparse.REMAINDER)
-
     parser.add_argument('--opt-model', default='', type=str, metavar='MODEL', required=True,
+                        help='Path to optimize model (default: "")')
+    parser.add_argument('--opt-result-dir', default='', type=str, metavar='result directory', required=False,
                         help='Path to optimize model (default: "")')
 
     args = parser.parse_args()
@@ -65,27 +69,52 @@ def main():
         setup_logger(output=output_dir)
     logger.info(pprint.pformat(args))
     logger.info(config)
-
-    # cudnn related setting
-    cudnn.benchmark = config.CUDNN.BENCHMARK
-    cudnn.deterministic = config.CUDNN.DETERMINISTIC
-    cudnn.enabled = config.CUDNN.ENABLED
-    gpus = list(config.TEST.GPUS)
-    if len(gpus) > 1:
-        raise ValueError('Test only supports single core.')
+    if torch.cuda.is_available():
+        # cudnn related setting
+        cudnn.benchmark = config.CUDNN.BENCHMARK
+        cudnn.deterministic = config.CUDNN.DETERMINISTIC
+        cudnn.enabled = config.CUDNN.ENABLED
+        gpus = list(config.TEST.GPUS)
+        if len(gpus) > 1:
+            raise ValueError('Test only supports single core.')
+    if torch.has_mps:
+        config['WORKERS'] = 0
     device = 'mps' if torch.has_mps else ( 'cuda' if torch.cuda.is_available() else 'cpu' )
-
     # create inference session
     providers = ['CUDAExecutionProvider', ] if device == 'cuda' else ['CPUExecutionProvider', ]
     if device == 'mps' and 'CoreMLExecutionProvider' in ort.get_available_providers():
-        providers = ['CoreMLExecutionProvider', ]
-    # device = 'cpu'
-    # providers = ['CPUExecutionProvider', ]
-
+        providers = ['CoreMLExecutionProvider', 'CPUExecutionProvider', ]
+    device = 'cpu'
+    providers = ['CPUExecutionProvider']
     options = ort.SessionOptions()
-    options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
+    options.execution_mode = ort.ExecutionMode.ORT_PARALLEL # ort.ExecutionMode.ORT_SEQUENTIAL
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+    args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim.onnx'
+    args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim_quantized.onnx'
+    args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_34.onnx'
+    args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_1.onnx'
+    args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_10.onnx'
     onnx_session = ort.InferenceSession(args.opt_model, sess_options=options, providers=providers)
+
+    save_io = False
+    permute = False
+    for i in onnx_session.get_inputs():
+        print(i)
+        permute = i.shape[1] > i.shape[3]
+    set_permute(permute)
+    semantic = -1
+    offset = -1
+    center = -1
+    j = 0
+    for o in onnx_session.get_outputs():
+        print(o)
+        if o.shape[3 if permute else 1] == 1:
+            center = j
+        elif o.shape[3 if permute else 1] == 2:
+            offset = j
+        elif o.shape[3 if permute else 1] == 19:
+            semantic = j
+        j = j + 1
 
     # build data_loader
     data_loader = build_test_loader_from_cfg(config)
@@ -169,6 +198,8 @@ def main():
                 "Override TEST.TEST_TIME_AUGMENTATION to True because test time augmentation detected."
                 "Please check your config file if you think it is a mistake.")
 
+
+    result_dir = None if args.opt_result_dir is None else args.opt_result_dir
     # Train loop.
     try:
         for i, data in enumerate(data_loader):
@@ -189,10 +220,8 @@ def main():
 
             image = data.pop('image')
             if torch.cuda.is_available():
-                try:
                     torch.cuda.synchronize(device)
-                except:
-                    pass
+
             data_time.update(time.time() - start_time)
 
             start_time = time.time()
@@ -201,46 +230,54 @@ def main():
             #PanDeepLab_Model1_sim.onnx {'mIoU': 75.49928865934673, 'fwIoU': 91.99857711791992, 'mACC': 83.4284079702277, 'pACC': 95.6729531288147}
             #PanDeepLab_Model2_sim.onnx {'mIoU': 75.1311653538754, 'fwIoU': 91.78708791732788, 'mACC': 84.01618254812139, 'pACC': 95.5343246459961}
 
-            permute = True
+            result_dir = None #'/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test.onnx.prof/68c2c45f54765eafc5cfecd361b85997/output'
             # run onnx session
             if permute:
-                image = image * 256 / 127.5 - 1  # The best
+                # image = image * 256 / 127.5 - 1  # The best
                 onnx_inputs = {"input": torch.permute(image, [0, 2, 3, 1]).cpu().numpy()}
             else:
+                # image = image * 256 / 127.5 - 1  # The best
                 onnx_inputs = {"input": image.cpu().numpy()}
-
-            out_list = onnx_session.run(None, onnx_inputs)
-            semantic = -1
-            offset = -1
-            center = -1
+            if save_io:
+                for k in onnx_inputs.keys():
+                    filename = os.path.join('files','{}_{}_{:04d}.raw'.format( '1' if permute else '0', k, i))
+                    print(filename)
+                    onnx_inputs[k].tofile(filename)
+            if result_dir == None or result_dir == '':
+                out_list = onnx_session.run(None, onnx_inputs)
+            else:
+                h = image.shape[2] // 4
+                w = image.shape[3] // 4
+                out_list = [
+                    np.reshape(numpy.fromfile(os.path.join(result_dir,'output-activation-0-inf-{}.bin'.format(i)), dtype=np.float32), [19,h,w])[None],
+                    np.reshape(numpy.fromfile(os.path.join(result_dir, '1056-activation-0-inf-{}.bin'.format(i)), dtype=np.float32), [1, h, w])[None],
+                    np.reshape(numpy.fromfile(os.path.join(result_dir, '1063-activation-0-inf-{}.bin'.format(i)), dtype=np.float32), [2, h, w])[None],
+                ]
+                semantic = 0
+                center = 1
+                offset = 2
             for j in range(3):
                 out_list[j] = torch.from_numpy(out_list[j])
                 if permute:
                     out_list[j] = torch.permute(out_list[j], [0, 3, 1, 2])
-                if out_list[j].shape[1] == 1:
-                    center = j
-                if out_list[j].shape[1] == 2:
-                    offset = j
-                if out_list[j].shape[1] == 19:
-                    semantic = j
 
             out_dict = {"semantic": out_list[semantic], "center": out_list[center], "offset": out_list[offset]}
-            out_dict["semantic"] = F.interpolate(out_dict["semantic"],
-                                                 size=image.shape[-2:],
-                                                 mode='bilinear',
-                                                 align_corners=True)
-            out_dict["offset"] = F.interpolate(out_dict["offset"],
-                                                 size=image.shape[-2:],
-                                                 mode='bilinear',
-                                                 align_corners=True)
-            out_dict["center"] = F.interpolate(out_dict["center"],
-                                                 size=image.shape[-2:],
-                                                 mode='bilinear',
-                                                 align_corners=True)
-            try:
+            if save_io:
+                filename = os.path.join('files', 'expected_{}_{}_{:04d}.raw'.format('1' if permute else '0', 'semantic', i))
+                data['semantic'].cpu().numpy().astype(np.float32).tofile(filename)
+                filename = os.path.join('files', 'expected_{}_{}_{:04d}.raw'.format('1' if permute else '0', 'center', i))
+                data['center'].cpu().numpy().astype(np.float32).tofile(filename)
+                filename = os.path.join('files', 'expected_{}_{}_{:04d}.raw'.format('1' if permute else '0', 'offset', i))
+                data['offset'].cpu().numpy().astype(np.float32).tofile(filename)
+                filename = os.path.join('files', 'expected_{}_{}_{:04d}.raw'.format('1' if permute else '0', 'mask', i))
+                data['mask'].cpu().numpy().astype(np.float32).tofile(filename)
+
+            out_dict["semantic"] = F.interpolate(out_dict["semantic"], size=image.shape[-2:], mode='bilinear', align_corners=True)
+            out_dict["offset"] = F.interpolate(out_dict["offset"], size=image.shape[-2:], mode='bilinear',  align_corners=True)
+            out_dict["center"] = F.interpolate(out_dict["center"], size=image.shape[-2:], mode='bilinear', align_corners=True)
+            if torch.cuda.is_available():
                 torch.cuda.synchronize(device)
-            except:
-                pass
+
             net_time.update(time.time() - start_time)
 
             start_time = time.time()
@@ -289,10 +326,8 @@ def main():
                 panoptic_pred = None
 
             if torch.cuda.is_available():
-                try:
                     torch.cuda.synchronize(device)
-                except:
-                    pass
+
             post_time.update(time.time() - start_time)
             logger.info('[{}/{}]\t'
                         'Data Time: {data_time.val:.3f}s ({data_time.avg:.3f}s)\t'
