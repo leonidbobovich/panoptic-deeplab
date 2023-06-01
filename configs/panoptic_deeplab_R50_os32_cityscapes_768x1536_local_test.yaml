@@ -52,7 +52,7 @@ SOLVER:
 LOSS:
   SEMANTIC:
     NAME: "hard_pixel_mining"
-    IGNORE: 255
+    IGNORE: 20
     TOP_K_PERCENT: 0.2
     WEIGHT: 1.0
   CENTER:

@@ -16,6 +16,9 @@ from torch.onnx import TrainingMode
 from typing import List, Dict
 
 
+trainable = True
+
+
 def is_input(onnx_model, node):
     for n in onnx_model.graph.input:
         if n.name in node.input:
@@ -277,26 +280,50 @@ def onnx_node_to_torch(md5: str, node: onnx.NodeProto, inputs: List[str], counte
         elif len(kernel_shape) == 2:
             # assert len(tensor_shape) == 4
             pads = pads[0:2]
-            return name, output, \
-                prefix + name + ' = torch.nn.Conv2d( ' + \
-                'in_channels=' + str(_w.dims[0] if is_deepwise else _w.dims[1]) + ', ' + \
-                'out_channels=' + str(_w.dims[0]) + ', ' + \
-                'kernel_size=' + str(tuple(_w.dims[2:])) + ', ' + \
-                'stride=' + str(tuple(stride)) + ', ' + \
-                'dilation=' + str(tuple(dilation)) + ', ' + \
-                'padding=' + str(tuple(pads)) + ', ' + \
-                'groups=' + str(group) + ', ' + \
-                'bias=' + ('True' if _b is not None else 'False') + \
-                ')' + comment + '\n' + \
-                offset + 'with torch.no_grad():\n' + \
-                (nograd + name + '.weight.copy_(torch.from_numpy(numpy.load(\'' + input_files[
-                    node.input[1]] + '\')).float())\n'
-                 if _w is not None
-                 else nograd + name + '.weight.copy_(torch.zeros(' + prefix + name + '.weight.shape))\n') + \
-                (nograd + name + '.bias.copy_(torch.from_numpy(numpy.load(\'' + input_files[
-                    node.input[2]] + '\')).float())\n'
-                 if _b is not None else '') + '\n', \
-                offset + output + ' = self.' + name + '(' + inputs[0] + ')' + post_stats
+            if trainable and _b is not None:
+                return name, output, \
+                    prefix + name + ' = torch.nn.Conv2d( ' + \
+                    'in_channels=' + str(_w.dims[0] if is_deepwise else _w.dims[1]) + ', ' + \
+                    'out_channels=' + str(_w.dims[0]) + ', ' + \
+                    'kernel_size=' + str(tuple(_w.dims[2:])) + ', ' + \
+                    'stride=' + str(tuple(stride)) + ', ' + \
+                    'dilation=' + str(tuple(dilation)) + ', ' + \
+                    'padding=' + str(tuple(pads)) + ', ' + \
+                    'groups=' + str(group) + ', ' + \
+                    'bias=False' \
+                    ')' + comment + '\n' + \
+                    prefix + name + '_bn = torch.nn.BatchNorm2d(num_features=' + str(_w.dims[0]) + ', affine=True)\n' + \
+                    offset + 'with torch.no_grad():\n' + \
+                    (nograd + name + '.weight.copy_(torch.from_numpy(numpy.load(\'' + input_files[
+                        node.input[1]] + '\')).float())\n'
+                     if _w is not None
+                     else nograd + name + '.weight.copy_(torch.zeros(' + prefix + name + '.weight.shape))\n') + \
+                    (nograd + name + '_bn.bias.copy_(torch.from_numpy(numpy.load(\'' + input_files[
+                        node.input[2]] + '\')).float())\n'
+                     if _b is not None else '') + '\n', \
+                    offset + output + '_bn = self.' + name + '(' + inputs[0] + ')' + post_stats + '\n' + \
+                    offset + output + ' = self.' + name + '_bn(' + offset + output + '_bn)' + post_stats
+            else:
+                return name, output, \
+                    prefix + name + ' = torch.nn.Conv2d( ' + \
+                    'in_channels=' + str(_w.dims[0] if is_deepwise else _w.dims[1]) + ', ' + \
+                    'out_channels=' + str(_w.dims[0]) + ', ' + \
+                    'kernel_size=' + str(tuple(_w.dims[2:])) + ', ' + \
+                    'stride=' + str(tuple(stride)) + ', ' + \
+                    'dilation=' + str(tuple(dilation)) + ', ' + \
+                    'padding=' + str(tuple(pads)) + ', ' + \
+                    'groups=' + str(group) + ', ' + \
+                    'bias=' + ('True' if _b is not None else 'False') + \
+                    ')' + comment + '\n' + \
+                    offset + 'with torch.no_grad():\n' + \
+                    (nograd + name + '.weight.copy_(torch.from_numpy(numpy.load(\'' + input_files[
+                        node.input[1]] + '\')).float())\n'
+                     if _w is not None
+                     else nograd + name + '.weight.copy_(torch.zeros(' + prefix + name + '.weight.shape))\n') + \
+                    (nograd + name + '.bias.copy_(torch.from_numpy(numpy.load(\'' + input_files[
+                        node.input[2]] + '\')).float())\n'
+                     if _b is not None else '') + '\n', \
+                    offset + output + ' = self.' + name + '(' + inputs[0] + ')' + post_stats
         elif len(kernel_shape) == 3:
             return torch.nn.Conv3d(in_channels=_w.dims[0] if is_deepwise else _w.dims[1],
                                    out_channels=_w.dims[0], kernel_size=_w.dims[2:],
@@ -462,7 +489,7 @@ def onnx_node_to_torch(md5: str, node: onnx.NodeProto, inputs: List[str], counte
             print(node.op_type, node.name, node.input, input_files)
             assert False
         return name, output, '{} = None {}'.format(prefix_in_init, comment), \
-            '{} = torch.nn.functional.upsample({}, mode=\'{}\', {})  {}'.format(prefix_in_body, inputs[0],
+            '{} = torch.nn.functional.interpolate({}, mode=\'{}\', {})  {}'.format(prefix_in_body, inputs[0],
                                                                                 mode.decode('utf-8'),
                                                                                 arg, post_stats)
     elif node.op_type == 'Identity':
@@ -655,7 +682,10 @@ def onnx_file_convert(filename: str):
     for param_tensor in model.state_dict():
         print(param_tensor, "\t", model.state_dict()[param_tensor].size())
     # torch.save(model, '{}.pt'.format(md5))
+    print(torch.jit.script(model))
+    sys.exit(0)
     torch.jit.save(torch.jit.script(model), '{}_jit_eval.pt'.format(md5))
+    sys.exit(0)
     # model_scripted = torch.jit.script(model)  # Export to TorchScript
     # model_scripted.save('model_jit.pt')  # Save
     ptflops_input = tuple(onnx_input[0][1][1:])
@@ -663,7 +693,7 @@ def onnx_file_convert(filename: str):
     complexity = ptflops.get_model_complexity_info(model=model, input_res=ptflops_input, print_per_layer_stat=True)
     print(complexity)
     model.train()
-    torch.jit.save(torch.jit.script(model), '{}_jit_train.pt'.format(md5))
+    torch.jit.save(torch.jit.trace(model), '{}_jit_train.pt'.format(md5))
     # for op in range(9, 18):
     #     torch.onnx.export(model=model.cpu(), args=torch.rand(model_input), f='{}_{}_train.onnx'.format(md5, op),
     #                       verbose=False, do_constant_folding=True, opset_version=op)

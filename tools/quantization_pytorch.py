@@ -87,11 +87,11 @@ torch.backends.quantized.engine = "qnnpack"
 # qconfig = torch.quantization.get_default_qconfig(torch.backends.quantized.engine)
 qconfig = torch.quantization.default_qat_qconfig_v2
 #qconfig = torch.quantization.default_qat_qconfig
-refer = network(False)
+refer = network()
 refer.eval()
 refer = refer.to(device)
 
-model = network(True)
+model = network()
 model.qconfig = qconfig
 model = torch.quantization.prepare(model)
 model.train()
@@ -100,21 +100,20 @@ model = model.to(device)
 n_epochs = 100
 
 #optimizer = torch.optim.SGD(opt_model.parameters(), lr=1e0)
-optimizer = torch.optim.Adam(model.parameters(), lr=1e-17)
+optimizer = torch.optim.Adam(model.parameters(), lr=1e-1)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.1, verbose=True)
 # loss_fn = lambda out, tgt: torch.pow(tgt - out, 2).mean()
 semantic_loss_fn = torch.nn.CrossEntropyLoss()
 # loss_fn = torch.nn.MSELoss()
 # loss_fn = torch.nn.L1Loss()
 data_reader = DataReader(
-    os.path.join(os.environ['HOME'], 'Work/ml/qualcomm-panoptic-deeplab/datasets/cityscapes/leftImg8bit/train'),
+    os.path.join(os.environ['HOME'], 'Work/ml/qualcomm-panoptic-deeplab/datasets/cityscapes/leftImg8bit/val'),
     768, 1536, 2)
 average_loss = 0
 average_count =0
 for epoch in range(n_epochs):
     data_reader.rewind()
     x = data_reader.get_next()
-
     while x is not None:
         x = x.to(device)
         ref = refer(x)
@@ -122,7 +121,7 @@ for epoch in range(n_epochs):
         loss = semantic_loss_fn(out[0], torch.argmax(ref[0],dim=1))  # + loss_fn(out[1], ref[1]) + loss_fn(out[2], ref[2])
         average_loss = average_loss + loss.detach().cpu().numpy().sum()
         average_count = average_count + 1
-        print(optimizer.param_groups[0]['lr'], average_count, loss, average_loss/average_count,
+        print(epoch, optimizer.param_groups[0]['lr'], average_count, loss, average_loss/average_count,
               qdq_loss_debug.compute_signal_to_quantization_noice_ratio(ref[0].detach().cpu().numpy(), out[0].detach().cpu().numpy()),
               numpy.abs(ref[0].detach().cpu().numpy() - out[0].detach().cpu().numpy()).sum())
         optimizer.zero_grad()
@@ -130,10 +129,10 @@ for epoch in range(n_epochs):
         optimizer.step()
         x = data_reader.get_next()
     scheduler.step(average_loss / average_count)
-    # x = torch.from_numpy(np.random.rand(1, 3, 768, 1536).astype(np.float32)).to(dtype=torch.float)
-    # model_export = torch.quantization.convert(model.cpu(), remove_qconfig=False)
-    # check_onnx_export(model_export, x.to('cpu'), f'opt_model_int8_{epoch}')
-    # model = model.to(device)
+    x = torch.from_numpy(np.random.rand(1, 3, 768, 1536).astype(np.float32)).to(dtype=torch.float)
+    model_export = torch.quantization.convert(model.cpu(), remove_qconfig=False)
+    check_onnx_export(model_export, x.to('cpu'), f'opt_model_int8_{epoch}')
+    model = model.to(device)
 
 model = model.cpu()
 model.eval()

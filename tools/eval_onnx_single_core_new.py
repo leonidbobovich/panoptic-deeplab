@@ -56,13 +56,15 @@ def parse_args():
                         help='Path to optimize model (default: "")')
 
     args = parser.parse_args()
-    args.cfg = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/configs/panoptic_deeplab_R50_os32_cityscapes_768x1536_local_test.yaml'
-    # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim.onnx'
-    # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim_quantized.onnx'
-    # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_34.onnx'
-    # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_1.onnx'
-    # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_10.onnx'
-    # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/stem_sim.onnx'
+    # args.cfg = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/configs/panoptic_deeplab_R50_os32_cityscapes_768x1536_local_test.yaml'
+    # # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim.onnx'
+    # # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim_quantized.onnx'
+    # # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_34.onnx'
+    # # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_1.onnx'
+    # # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/opt_model_int8_10.onnx'
+    # # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/stem_sim.onnx'
+    # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/b064fd49673658c7f6e05214e7e8533c.onnx'
+    # args.opt_result_dir = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/final_truncated.onnx.prof/b064fd49673658c7f6e05214e7e8533c/0e9918971078d716eae1225b756a9ee3.0/output'
     update_config(config, args)
 
     return args
@@ -263,7 +265,7 @@ def main():
                 center = 1
                 offset = 2
             for j in range(3):
-                out_list[j] = torch.from_numpy(out_list[j])
+                out_list[j] = torch.from_numpy(out_list[j]).to(device)
                 if permute:
                     out_list[j] = torch.permute(out_list[j], [0, 3, 1, 2])
 
@@ -341,11 +343,11 @@ def main():
                         'Post-processing Time: {post_time.val:.3f}s ({post_time.avg:.3f}s)\t'.format(
                 i, len(data_loader), data_time=data_time, net_time=net_time, post_time=post_time))
 
-            semantic_pred = semantic_pred.squeeze(0).cpu().numpy()
+            semantic_pred = semantic_pred.squeeze(0) #.cpu().numpy()
             if panoptic_pred is not None:
-                panoptic_pred = panoptic_pred.squeeze(0).cpu().numpy()
+                panoptic_pred = panoptic_pred.squeeze(0) #.cpu().numpy()
             if foreground_pred is not None:
-                foreground_pred = foreground_pred.squeeze(0).cpu().numpy()
+                foreground_pred = foreground_pred.squeeze(0) #.cpu().numpy()
 
             # Crop padded regions.
             image_size = data['size'].squeeze(0).cpu().numpy()
@@ -358,8 +360,14 @@ def main():
             # Resize back to the raw image size.
             raw_image_size = data['raw_size'].squeeze(0).cpu().numpy()
             if raw_image_size[0] != image_size[0] or raw_image_size[1] != image_size[1]:
-                semantic_pred = cv2.resize(semantic_pred.astype(float), (raw_image_size[1], raw_image_size[0]),
-                                           interpolation=cv2.INTER_NEAREST).astype(np.int32)
+                semantic_pred = torch.nn.functional.interpolate(semantic_pred[None][None].to(torch.float32),
+                                                                      size=[raw_image_size[0],
+                                                                            raw_image_size[1]],
+                                                                      mode='nearest').to(torch.int32)[0][0]
+                # semantic_pred = semantic_pred.cpu().numpy()
+                # semantic_pred = cv2.resize(semantic_pred.cpu().numpy().astype(float), (raw_image_size[1], raw_image_size[0]),
+                #                            interpolation=cv2.INTER_NEAREST).astype(np.int32)
+
                 if panoptic_pred is not None:
                     panoptic_pred = cv2.resize(panoptic_pred.astype(float),
                                                (raw_image_size[1], raw_image_size[0]),
@@ -370,7 +378,7 @@ def main():
                                                  interpolation=cv2.INTER_NEAREST).astype(np.int32)
 
             # Evaluates semantic segmentation.
-            semantic_metric.update(semantic_pred,
+            semantic_metric.update(semantic_pred.cpu().numpy(),
                                    data['raw_label'].squeeze(0).cpu().numpy(),
                                    image_filename_list[i])
 
@@ -388,8 +396,8 @@ def main():
                                                mode='bilinear',
                                                align_corners=False)  # Consistent with OpenCV.
 
-                raw_semantic = raw_semantic.squeeze(0).cpu().numpy()
-                center_hmp = center_hmp.squeeze(1).squeeze(0).cpu().numpy()
+                raw_semantic = raw_semantic.squeeze(0) #.cpu().numpy()
+                center_hmp = center_hmp.squeeze(1).squeeze(0) #.cpu().numpy()
 
                 instances = get_cityscapes_instance_format(panoptic_pred,
                                                            raw_semantic,
