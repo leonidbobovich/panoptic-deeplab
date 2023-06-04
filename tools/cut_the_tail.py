@@ -3,8 +3,13 @@ import sys
 import onnx
 import onnxsim
 
-model = onnx.load('../final_sim.onnx')
-
+# outputname = '../evaluate.71.2.onnx'
+# model = onnx.load('../aimet-ptq-export-71.2/Final.onnx')
+outputname = '../evaluate.71.86.onnx'
+model = onnx.load('../panoptic-deep-stem-adjust-acc75.54_quantized_to_71.86/Final.onnx')
+model = onnxsim.simplify(model, overwrite_input_shapes={model.graph.input[0].name:[1,3,768,1536]})
+onnx.save(model[0], outputname)
+model = onnx.load(outputname)
 print(model.graph.output)
 model.graph.output.clear()
 
@@ -50,5 +55,5 @@ while not stop:
 
 onnx.checker.check_model(model)
 model = onnxsim.simplify(model, overwrite_input_shapes={model.graph.input[0].name:[1,3,768,1536]})
-onnx.save(model[0], '../final_truncated.onnx')
+onnx.save(model[0], outputname)
 sys.exit(0)

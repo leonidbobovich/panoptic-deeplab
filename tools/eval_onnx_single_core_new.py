@@ -65,6 +65,9 @@ def parse_args():
     # # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/stem_sim.onnx'
     # args.opt_model = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/b064fd49673658c7f6e05214e7e8533c.onnx'
     # args.opt_result_dir = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/final_truncated.onnx.prof/b064fd49673658c7f6e05214e7e8533c/0e9918971078d716eae1225b756a9ee3.0/output'
+    print(args.cfg)
+    print(args.opt_result_dir)
+    print(args.opt_model)
     update_config(config, args)
 
     return args
