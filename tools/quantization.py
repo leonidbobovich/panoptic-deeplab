@@ -84,7 +84,14 @@ class DataReader(CalibrationDataReader):
         # Use inference session to get input shape.
         session = onnxruntime.InferenceSession(model_path, sess_options=None,
                                                providers=['CoreMLExecutionProvider', 'CPUExecutionProvider'])
-        (_, _, height, width) = session.get_inputs()[0].shape
+        if session.get_inputs()[0].shape[1] > session.get_inputs()[0].shape[3]:
+            self.transposed = True
+            width = session.get_inputs()[0].shape[2]
+            height = session.get_inputs()[0].shape[1]
+        else:
+            self.transposed = False
+            width = session.get_inputs()[0].shape[2]
+            height = session.get_inputs()[0].shape[3]
         self.height = height
         self.width = width
         # Convert image to input data
@@ -109,10 +116,11 @@ class DataReader(CalibrationDataReader):
         # input_data = numpy.float32(pillow_img) - numpy.array(
         #     [123.68, 116.78, 103.94], dtype=numpy.float32
         # )
-        input_data = numpy.float32(pillow_img) # * 2 - 1
+        input_data = numpy.float32(pillow_img) * 2 - 1
         nhwc_data = numpy.expand_dims(input_data, axis=0)
-        nchw_data = nhwc_data.transpose((0, 3, 1, 2))  # ONNX Runtime standard
-        return {self.input_name: nchw_data}
+        return {self.input_name: nhwc_data}
+        # nchw_data = nhwc_data.transpose((0, 3, 1, 2))  # ONNX Runtime standard
+        # return {self.input_name: nchw_data}
 
     def rewind(self):
         self.next_read = 0
@@ -133,10 +141,11 @@ def convert_model_to_opset(model_path, converted_model_path, opset):
     print(f"The model after conversion:\n{converted_model_path}")
 
 def main():
-    model_fp32 = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim.onnx'
-    model_fp32_converted = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim_converted.onnx'
-    model_fp32_preprocessed = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim_preprocessed.onnx'
-    model_quant = '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/test_sim_quantized.onnx'
+    name='pd2_sim'
+    model_fp32 = f'/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/{name}.onnx'
+    model_fp32_converted = f'/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/{name}_converted.onnx'
+    model_fp32_preprocessed = f'/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/{name}_preprocessed.onnx'
+    model_quant = f'/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/{name}_quantized.onnx'
     data_reader = DataReader(
         '/Users/leonidbobovich/Work/ml/qualcomm-panoptic-deeplab/datasets/cityscapes/leftImg8bit/val', model_fp32)
     convert_model_to_opset(model_fp32, model_fp32_converted, 13)

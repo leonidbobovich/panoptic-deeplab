@@ -5,8 +5,10 @@ import onnxsim
 
 # outputname = '../evaluate.71.2.onnx'
 # model = onnx.load('../aimet-ptq-export-71.2/Final.onnx')
-outputname = '../evaluate.71.86.onnx'
-model = onnx.load('../panoptic-deep-stem-adjust-acc75.54_quantized_to_71.86/Final.onnx')
+#outputname = '../evaluate.16.75.80.72.20.onnx'
+#model = onnx.load('../panoptic-deep-stem-16-75.8_quantized_to_72.2/Final.onnx')
+outputname = '../panoptic-deep-stem-16-v5-75.58_quantized_to_73.39.onnx'
+model = onnx.load('../aimet-2023-06-15-10-45-03/Final_6000.onnx')
 model = onnxsim.simplify(model, overwrite_input_shapes={model.graph.input[0].name:[1,3,768,1536]})
 onnx.save(model[0], outputname)
 model = onnx.load(outputname)

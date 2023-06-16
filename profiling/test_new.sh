@@ -48,9 +48,10 @@ ${Q_FLAGS}\
 [ "${TRACE}" == "1" ] && COMPILE_FLAGS="${COMPILE_FLAGS} -ddr-stats -stats-level=100"
 [ "${PROFILE}" == "0" ] && [ "${QUANTIZE}" == "8" ] && FLAGS="${FLAGS} -convert-to-quantize"
 
-PERF_FLAGS="-aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=4 -use-producer-dma=1 -enable-channelwise"
-PERF_FLAGS="-aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=4 -use-producer-dma=1 -enable-rowwise"
-PERF_FLAGS="-aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=4"
+#PERF_FLAGS="-aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=4 -use-producer-dma=1 -enable-channelwise"
+#PERF_FLAGS="-aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=4 -use-producer-dma=1 -enable-rowwise"
+#PERF_FLAGS="-aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=4"
+PERF_FLAGS="-aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=6"
 #PARAMS="-m=/tmp/${MODEL} -aic-binary-dir=/tmp/${TEST}/bin -aic-hw -aic-num-cores=1 -mos=1 -ols=1 -batchsize=1 -quantization-precision=Int8 -quantization-precision-bias=Int32 -quantization-schema-constants=symmetric_with_uint8 -quantization-schema-activations=asymmetric  -onnx-define-symbol=batch,1 -onnx-define-symbol=unk__80,1 -time-passes -aic-perf-warnings -aic-perf-metrics -device-id=0 -compile-only -ddr-stats -stats-level=100 -aic-enable-depth-first -vtcm-working-set-limit-ratio=1.0 -size-split-granularity=1536 -allocator-dealloc-delay=4 -use-producer-dma=1"
 PRECISION_FLAGS=""
 
@@ -78,7 +79,7 @@ echo ${COMPILE_MD5} ${COMPILE_FLAGS}
 #COMP_HOST=ubuntu@blackmunk.com
 #COMP_EXEC="ssh -p   2023 ${COMP_HOST}"
 #COMP_COPY="scp -r -P 2023"
-COMP_HOST="ubuntu@3.236.31.44"
+COMP_HOST="ubuntu@44.203.79.37"
 COMP_EXEC="ssh -p 2022 ${COMP_HOST}"
 COMP_COPY="scp -r -P 2022"
 

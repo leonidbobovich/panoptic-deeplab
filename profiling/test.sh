@@ -88,7 +88,7 @@ COMPILE_MD5=$(echo ${COMPILE_FLAGS} | ${MD5LOCAL} )
 #COMP_HOST=ubuntu@blackmunk.com
 #COMP_EXEC="ssh -p 2023 ${COMP_HOST}"
 #COMP_COPY="scp -r -P 2023"
-COMP_HOST="ubuntu@3.236.31.44"
+COMP_HOST="ubuntu@44.203.79.37"
 COMP_EXEC="ssh -p 2022 ${COMP_HOST}"
 COMP_COPY="scp -r -P 2022"
 

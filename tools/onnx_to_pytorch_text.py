@@ -683,17 +683,15 @@ def onnx_file_convert(filename: str):
         print(param_tensor, "\t", model.state_dict()[param_tensor].size())
     # torch.save(model, '{}.pt'.format(md5))
     print(torch.jit.script(model))
-    sys.exit(0)
-    torch.jit.save(torch.jit.script(model), '{}_jit_eval.pt'.format(md5))
-    sys.exit(0)
+    #torch.jit.save(torch.jit.script(model), '{}_jit_eval.pt'.format(md5))
     # model_scripted = torch.jit.script(model)  # Export to TorchScript
     # model_scripted.save('model_jit.pt')  # Save
     ptflops_input = tuple(onnx_input[0][1][1:])
     print('ptflops input:', ptflops_input)
     complexity = ptflops.get_model_complexity_info(model=model, input_res=ptflops_input, print_per_layer_stat=True)
     print(complexity)
-    model.train()
-    torch.jit.save(torch.jit.trace(model), '{}_jit_train.pt'.format(md5))
+    #model.train()
+    #torch.jit.save(torch.jit.trace(model), '{}_jit_train.pt'.format(md5))
     # for op in range(9, 18):
     #     torch.onnx.export(model=model.cpu(), args=torch.rand(model_input), f='{}_{}_train.onnx'.format(md5, op),
     #                       verbose=False, do_constant_folding=True, opset_version=op)
