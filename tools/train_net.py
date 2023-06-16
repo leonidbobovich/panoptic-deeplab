@@ -5,19 +5,23 @@
 # Written by Bowen Cheng (bcheng9@illinois.edu)
 # ------------------------------------------------------------------------------
 
-import argparse
-import logging
 import os
-import pprint
 import time
-from contextlib import suppress
+import pprint
+import logging
+import argparse
 from datetime import datetime
+from contextlib import suppress
 
+import onnx
+import onnxsim
 import torch
 import torch.backends.cudnn as cudnn
-from fvcore.common.file_io import PathManager
+
 from torch import nn
 from torch.nn.parallel import DistributedDataParallel
+
+from fvcore.common.file_io import PathManager
 
 import _init_paths
 from segmentation.config import config, update_config
@@ -31,8 +35,11 @@ from segmentation.utils import save_debug_images
 from segmentation.utils.logger import setup_logger
 from segmentation.utils.utils import get_loss_info_str, to_cuda, get_module, get_loss_info_dict
 
-torch.backends.cudnn.benchmark = True
+
 logger = logging.getLogger('segmentation')
+
+logger.warning('TO DO: Check if we can move it main')
+torch.backends.cudnn.benchmark = True
 
 
 def parse_args():
@@ -87,6 +94,12 @@ class NativeScaler:
 def main():
     args = parse_args()
 
+    if torch.has_mps:
+        logger.warning("TO DO: Ugly hack, config.DATALOADER.NUM_WORKERS is not MPS but on python version and platform. Not working on MacOS ")
+        config.defrost()
+        config.DATALOADER.NUM_WORKERS = 0
+        config.freeze()
+
     has_wandb = False
     if args.log_wandb:
         try:
@@ -100,23 +113,24 @@ def main():
                            "Metrics not being logged to wandb, try `pip install wandb`")
 
     output_dir = os.path.join(config.OUTPUT_DIR, "train_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
+    output_dir = os.path.join(config.OUTPUT_DIR, "train")
     if not logger.isEnabledFor(logging.INFO):  # setup_logger is not called
         setup_logger(output=output_dir, distributed_rank=args.local_rank)
     logger.info(pprint.pformat(args))
     logger.info(config)
-
-    # cudnn related setting
-    cudnn.benchmark = config.CUDNN.BENCHMARK
-    cudnn.deterministic = config.CUDNN.DETERMINISTIC
-    cudnn.enabled = config.CUDNN.ENABLED
-
-    args.distributed = False
-    if 'WORLD_SIZE' in os.environ:
-        args.distributed = int(os.environ['WORLD_SIZE']) > 1
-    args.device = 'cuda:0'
+    if torch.has_cuda:
+        # cudnn related setting
+        cudnn.benchmark = config.CUDNN.BENCHMARK
+        cudnn.deterministic = config.CUDNN.DETERMINISTIC
+        cudnn.enabled = config.CUDNN.ENABLED
+    else:
+        args.amp = 0
+    args.device = torch.device('cuda' if torch.has_cuda and torch.cuda.is_available() else ('mps' if torch.has_mps else 'cpu'))
+    logger.info('Running on device {}'.format(args.device))
+    args.distributed = int(os.environ['WORLD_SIZE']) > 1 if 'WORLD_SIZE' in os.environ else False
     args.world_size = 1
     args.rank = 0  # global rank
-    if args.distributed:
+    if torch.cuda and args.distributed:
         args.device = 'cuda:%d' % args.local_rank
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
@@ -125,7 +139,7 @@ def main():
         logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process %d, total %d.'
                     % (args.rank, args.world_size))
     else:
-        logger.info('Training with a single process on 1 GPUs.')
+        logger.info('Training with a single process on {}'.format(args.device))
     assert args.rank >= 0
 
     # build model
@@ -134,16 +148,13 @@ def main():
         logger.info(f"Load: {args.opt_model}")
     else:
         model = build_segmentation_model_from_cfg(config)
-        # torch.save(model, 'models/~panoptic_deeplab_R50_os32_cityscapes.pth')
-
-    # logger.debug("Model:\n{}".format(model))
     logger.info("Rank of current process: {}. World size: {}".format(comm.get_rank(), comm.get_world_size()))
 
     if args.distributed:
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
 
     # move model to GPU, enable channels last layout if set
-    model.cuda()
+    model = model.to(args.device)
     if args.channels_last:
         model = model.to(memory_format=torch.channels_last)
 
@@ -207,7 +218,15 @@ def main():
     if config.CKPT_FREQ > 0:
         model_out_dir = os.path.join(output_dir, 'models')
         PathManager.mkdirs(model_out_dir)
+    # model.eval()
+    torch.onnx.export(model, input_names=['input'], f=os.path.join(output_dir,'model_initial.onnx'),
+                      args=torch.rand(1, 3, config.DATASET.CROP_SIZE[0], config.DATASET.CROP_SIZE[1]).to(args.device))
+    # onnx_model = onnx.load(os.path.join(output_dir,'model_initial.onnx'))
+    # onnx_model = onnxsim.simplify(model=onnx_model, skip_fuse_bn=True, overwrite_input_shapes={'input': [1, 3, 768, 1536]})
+    # onnx.save(onnx_model, onnx.os.path.join(output_dir,'model_sim_initial.onnx'))
+    # # logger.debug("Model:\n{}".format(model))
 
+    # model = model.to(args.device)
     # Train loop.
     model.train()
     second_order = hasattr(optimizer, 'is_second_order') and optimizer.is_second_order
@@ -216,14 +235,15 @@ def main():
             # data
             start_time = time.time()
             data = next(data_loader_iter)
-            if not args.distributed:
-                data = to_cuda(data, args.device)
+            #if not args.distributed:
+            data = to_cuda(data, args.device)
             data_time.update(time.time() - start_time)
 
             image = data.pop('image')
             if args.channels_last:
                 image = image.contiguous(memory_format=torch.channels_last)
-
+            logger.info(f'Data: {data_time.val:.3f}s ({data_time.avg:.3f})s')
+            continue
             with amp_autocast():
                 out_dict = model(image, data)
                 loss = out_dict['loss']

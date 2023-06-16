@@ -64,9 +64,10 @@ class CityscapesPanoptic(Cityscapes):
                  small_instance_area=0,
                  small_instance_weight=1,
                  custom_frame_size=None,
+                 use_tf_transform=False,
                  **kwargs):
         super(CityscapesPanoptic, self).__init__(root, split, is_train, crop_size, mirror, min_scale, max_scale,
-                                                 scale_step_size, mean, std)
+                                                 scale_step_size, mean, std, use_tf_transform)
 
         self.num_classes = _CITYSCAPES_INFORMATION.num_classes
         self.ignore_label = _CITYSCAPES_INFORMATION.ignore_label

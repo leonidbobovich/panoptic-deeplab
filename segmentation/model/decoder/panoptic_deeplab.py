@@ -11,6 +11,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from .aspp import ASPP
+from .vian import VIAN
 from .conv_module import stacked_conv
 
 
@@ -23,7 +24,8 @@ class SinglePanopticDeepLabDecoder(nn.Module):
         super(SinglePanopticDeepLabDecoder, self).__init__()
         if aspp_channels is None:
             aspp_channels = decoder_channels
-        self.aspp = ASPP(in_channels, out_channels=aspp_channels, atrous_rates=atrous_rates)
+        self.aspp = VIAN(in_channels, out_channels=aspp_channels, atrous_rates=atrous_rates)
+        #self.aspp = ASPP(in_channels, out_channels=aspp_channels, atrous_rates=atrous_rates)
         self.feature_key = feature_key
         self.decoder_stage = len(low_level_channels)
         assert self.decoder_stage == len(low_level_key)
@@ -69,7 +71,8 @@ class SinglePanopticDeepLabDecoder(nn.Module):
         for i in range(self.decoder_stage):
             l = features[self.low_level_key[i]]
             l = self.project[i](l)
-            x = F.interpolate(x, size=l.size()[2:], mode='bilinear', align_corners=True)
+            # x = F.interpolate(x, size=l.size()[2:], mode='bilinear', align_corners=True)
+            x = F.interpolate(x, size=l.size()[2:])
             x = torch.cat((x, l), dim=1)
             x = self.fuse[i](x)
 

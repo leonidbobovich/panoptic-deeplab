@@ -6,14 +6,7 @@
 from . import transforms as T
 
 
-
-normalize_tf=False
-def set_permute(permute):
-    global normalize_tf
-    normalize_tf = permute
-
-
-def build_transforms(dataset, is_train=True):
+def build_transforms(dataset, use_tf_transform=True, is_train=True):
     if is_train:
         min_scale = dataset.min_scale
         max_scale = dataset.max_scale
@@ -37,10 +30,7 @@ def build_transforms(dataset, is_train=True):
         ignore_label = dataset.label_pad_value
         mean = dataset.mean
         std = dataset.std
-    global normalize_tf
-    # if normalize_tf:
-    #     mean=[0,0,0]
-    #     std=[1,1,1]
+
     transforms = T.Compose(
         [
             T.RandomScale(
@@ -57,7 +47,7 @@ def build_transforms(dataset, is_train=True):
             ),
             T.RandomHorizontalFlip(flip_prob),
             T.ToTensor(),
-            T.TF_Normalize() if normalize_tf else T.Normalize(
+            T.TF_Normalize(mean, std) if use_tf_transform else T.Normalize(
                 mean,
                 std
             )

@@ -7,7 +7,6 @@ import logging
 from collections import OrderedDict
 
 import numpy as np
-import torch
 
 from fvcore.common.file_io import PathManager
 from segmentation.utils import save_annotation

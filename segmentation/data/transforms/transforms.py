@@ -49,6 +49,7 @@ class Normalize(object):
     def __init__(self, mean, std):
         self.mean = mean
         self.std = std
+        print('Normalize')
 
     def __call__(self, image, label):
         image = F.normalize(image, mean=self.mean, std=self.std)
@@ -56,9 +57,8 @@ class Normalize(object):
 
 
 class TF_Normalize(object):
-    """
-    Normalizes image by mean and std.
-    """
+    def __init__(self, mean, std):
+        print('TF_Normalize')
     def __call__(self, image, label):
         image = image / 0.5 - 1
         return image, label

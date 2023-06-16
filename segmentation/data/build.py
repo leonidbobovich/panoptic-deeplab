@@ -59,6 +59,7 @@ def build_dataset_from_cfg(config, is_train=True):
             small_instance_area=config.DATASET.SMALL_INSTANCE_AREA,
             small_instance_weight=config.DATASET.SMALL_INSTANCE_WEIGHT,
             custom_frame_size=config.DATASET.PRE_AUG,
+            use_tf_transform=config.DATASET.USE_TF_TRANSFORM
         ),
         'coco_panoptic': dict(
             root=config.DATASET.ROOT,

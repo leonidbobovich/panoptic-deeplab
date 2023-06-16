@@ -38,7 +38,8 @@ class ASPPPooling(nn.Module):
     def forward(self, x):
         size = x.shape[-2:]
         x = self.aspp_pooling(x)
-        return F.interpolate(x, size=size, mode='bilinear', align_corners=True)
+        # return F.interpolate(x, size=size, mode='bilinear', align_corners=True)
+        return F.interpolate(x, size=size)
 
 
 class ASPP(nn.Module):

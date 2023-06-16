@@ -7,11 +7,9 @@ import torch.nn as nn
 # from torchvision.models.utils import load_state_dict_from_url
 from torch.hub import load_state_dict_from_url
 
-
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
            'resnet152', 'resnext50_32x4d', 'resnext101_32x8d',
            'wide_resnet50_2', 'wide_resnet101_2']
-
 
 model_urls = {
     'resnet18': 'https://download.pytorch.org/models/resnet18-5c106cde.pth',
@@ -147,8 +145,12 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-        self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
-                               bias=False)
+
+
+        self.deep_stem = True
+        self.stem = self._make_stem_layer(3, self.inplanes)
+        # self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
+        #                        bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -179,6 +181,31 @@ class ResNet(nn.Module):
                 elif isinstance(m, BasicBlock):
                     nn.init.constant_(m.bn2.weight, 0)
 
+    def _make_stem_layer(self, in_channels, stem_channels, deep_stem=False):
+        """Make stem layer for ResNet."""
+        layers = []
+        if self.deep_stem:
+            layers.append(nn.Conv2d(in_channels, stem_channels // 2, kernel_size=3, stride=1, padding=1, bias=False))
+            layers.append(self._norm_layer(stem_channels // 2))
+            layers.append(nn.ReLU(inplace=True))
+
+            layers.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=1))
+
+            layers.append(nn.Conv2d(stem_channels // 2, stem_channels // 2, kernel_size=3, padding=1, bias=False))
+            layers.append(self._norm_layer(stem_channels // 2))
+            layers.append(nn.ReLU(inplace=True))
+
+            layers.append(nn.Conv2d(stem_channels // 2, stem_channels, kernel_size=3, padding=1, bias=False))
+            layers.append(self._norm_layer(stem_channels))
+            layers.append(nn.ReLU(inplace=True))
+        else:
+            layers.append(nn.Conv2d(in_channels, stem_channels, kernel_size=7, stride=2, padding=3, bias=False))
+            layers.append(self._norm_layer(stem_channels))
+            layers.append(nn.ReLU(inplace=True))
+
+        layers.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=1))
+        return nn.Sequential(*layers)
+
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
         norm_layer = self._norm_layer
         downsample = None
@@ -205,11 +232,17 @@ class ResNet(nn.Module):
 
     def _forward_impl(self, x):
         outputs = {}
-        # See note [TorchScript super()]
-        x = self.conv1(x)
-        x = self.bn1(x)
-        x = self.relu(x)
-        x = self.maxpool(x)
+        # # See note [TorchScript super()]
+        # x = self.conv1(x)
+        # x = self.bn1(x)
+        # x = self.relu(x)
+        # x = self.maxpool(x)
+
+        # if not hasattr(self, 'stem'):
+        #     self.stem = self._make_stem_layer(3, 64, deep_stem=True)
+        #     # self.stem =  nn.Sequential(self.conv1, self.bn1, self.relu, self.maxpool)
+
+        x = self.stem(x)
         outputs['stem'] = x
 
         x = self.layer1(x)  # 1/4

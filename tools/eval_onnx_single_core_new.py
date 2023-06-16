@@ -34,7 +34,7 @@ from segmentation.utils import save_annotation, save_instance_annotation, save_p
 from segmentation.utils import save_debug_images
 from segmentation.utils.logger import setup_logger
 
-from segmentation.data.transforms.build import set_permute
+# from segmentation.data.transforms.build import set_permute
 
 logger = logging.getLogger('segmentation')
 
@@ -110,7 +110,7 @@ def main():
     for i in onnx_session.get_inputs():
         print(i)
         permute = i.shape[1] > i.shape[3]
-    set_permute(permute)
+    # set_permute(permute)
     semantic = -1
     offset = -1
     center = -1
