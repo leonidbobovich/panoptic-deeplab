@@ -106,10 +106,10 @@ class BaseDataset(data.Dataset):
         # Resize and pad image to the same size before data augmentation.
         if self.pre_augmentation_transform is not None:
             image, label = self.pre_augmentation_transform(image, label)
-            size = image.shape
-            dataset_dict['size'] = np.array(size)
-        else:
-            dataset_dict['size'] = dataset_dict['raw_size']
+        #     size = image.shape
+        #     dataset_dict['size'] = np.array(size)
+        # else:
+        #     dataset_dict['size'] = dataset_dict['raw_size']
 
         # Apply data augmentation.
         if self.transform is not None:

@@ -64,10 +64,10 @@ class CityscapesPanoptic(Cityscapes):
                  small_instance_area=0,
                  small_instance_weight=1,
                  custom_frame_size=None,
-                 use_tf_transform=False,
+                 transform_to_use=0,
                  **kwargs):
         super(CityscapesPanoptic, self).__init__(root, split, is_train, crop_size, mirror, min_scale, max_scale,
-                                                 scale_step_size, mean, std, use_tf_transform)
+                                                 scale_step_size, mean, std, transform_to_use)
 
         self.num_classes = _CITYSCAPES_INFORMATION.num_classes
         self.ignore_label = _CITYSCAPES_INFORMATION.ignore_label
@@ -106,7 +106,7 @@ class CityscapesPanoptic(Cityscapes):
             self.pre_augmentation_transform = Resize(min_resize_value=custom_frame_size[0],
                                                      max_resize_value=custom_frame_size[1])
 
-        self.transform = build_transforms(self, is_train)
+        self.transform = build_transforms(self, transform_to_use=transform_to_use, is_train=is_train)
         if semantic_only:
             self.target_transform = SemanticTargetGenerator(self.ignore_label, self.rgb2id)
         else:

@@ -69,7 +69,7 @@ class Cityscapes(BaseDataset):
                  scale_step_size=0.25,
                  mean=(0.485, 0.456, 0.406),
                  std=(0.229, 0.224, 0.225),
-                 use_tf_transform=True,
+                 transform_to_use=0,
                  **kwargs):
         super(Cityscapes, self).__init__(root, split, is_train, crop_size, mirror, min_scale, max_scale,
                                          scale_step_size, mean, std)
@@ -84,7 +84,7 @@ class Cityscapes(BaseDataset):
 
         assert len(self) == _CITYSCAPES_INFORMATION.splits_to_sizes[self.split]
 
-        self.transform = build_transforms(self, use_tf_transform=use_tf_transform, is_train=is_train)
+        self.transform = build_transforms(self, transform_to_use=transform_to_use, is_train=is_train)
 
     def _get_files(self, data, dataset_split):
         """Gets files for the specified data type and dataset split.

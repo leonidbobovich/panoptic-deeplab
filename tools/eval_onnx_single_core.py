@@ -34,7 +34,7 @@ from segmentation.utils import save_annotation, save_instance_annotation, save_p
 from segmentation.utils import save_debug_images
 from segmentation.utils.logger import setup_logger
 
-from segmentation.data.transforms.build import set_permute
+#from segmentation.data.transforms.build import set_permute
 
 logger = logging.getLogger('segmentation')
 

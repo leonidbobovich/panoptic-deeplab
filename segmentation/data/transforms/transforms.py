@@ -57,10 +57,17 @@ class Normalize(object):
 
 
 class TF_Normalize(object):
-    def __init__(self, mean, std):
+    def __init__(self):
         print('TF_Normalize')
     def __call__(self, image, label):
         image = image / 0.5 - 1
+        return image, label
+
+
+class No_Normalize(object):
+    def __init__(self):
+        print('No_Normalize')
+    def __call__(self, image, label):
         return image, label
 
 

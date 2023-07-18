@@ -6,7 +6,7 @@
 from . import transforms as T
 
 
-def build_transforms(dataset, use_tf_transform=True, is_train=True):
+def build_transforms(dataset, transform_to_use=0, is_train=True):
     if is_train:
         min_scale = dataset.min_scale
         max_scale = dataset.max_scale
@@ -47,10 +47,8 @@ def build_transforms(dataset, use_tf_transform=True, is_train=True):
             ),
             T.RandomHorizontalFlip(flip_prob),
             T.ToTensor(),
-            T.TF_Normalize(mean, std) if use_tf_transform else T.Normalize(
-                mean,
-                std
-            )
+            T.No_Normalize() if transform_to_use == 0 else
+                ( T.Normalize(mean,std) if transform_to_use == 1 else T.TF_Normalize() )
         ]
     )
 

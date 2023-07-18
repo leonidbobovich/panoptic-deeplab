@@ -99,6 +99,12 @@ def build_segmentation_model_from_cfg(config):
     else:
         raise ValueError('Unknown meta backbone {}, please first implement it.'.format(config.MODEL.BACKBONE.META))
 
+    # model_cfg[config.MODEL.META_ARCHITECTURE]['in_channels'] = backbone.inplanes
+    model_cfg[config.MODEL.META_ARCHITECTURE]['in_channels'] = backbone.channels[model_cfg[config.MODEL.META_ARCHITECTURE]['feature_key']]
+    # model_cfg[config.MODEL.META_ARCHITECTURE]['low_level_channels'] = \
+    #         [ backbone.inplanes//2, backbone.inplanes//4, backbone.inplanes //8 ]
+    # model_cfg[config.MODEL.META_ARCHITECTURE]['low_level_channels'] = \
+    #         [ backbone.inplanes//4, backbone.inplanes //8 ]
     model = model_map[config.MODEL.META_ARCHITECTURE](
         backbone,
         **model_cfg[config.MODEL.META_ARCHITECTURE]

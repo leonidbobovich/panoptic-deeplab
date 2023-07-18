@@ -6,6 +6,8 @@
 # ------------------------------------------------------------------------------
 
 import argparse
+import sys
+
 import cv2
 import logging
 import numpy as np
@@ -17,7 +19,7 @@ import torch.backends.cudnn as cudnn
 import torch.nn.functional as F
 from datetime import datetime
 from fvcore.common.file_io import PathManager
-
+import _init_paths
 from segmentation.config import config, update_config
 from segmentation.data import build_test_loader_from_cfg
 from segmentation.evaluation import (
@@ -61,37 +63,46 @@ def parse_args():
 def main():
     args = parse_args()
 
+    if torch.has_mps:
+        logger.warning("TO DO: Ugly hack, config.DATALOADER.NUM_WORKERS is not MPS but on python version and platform. Not working on MacOS ")
+        config.defrost()
+        config.DATALOADER.NUM_WORKERS = 0
+        config.freeze()
+
     output_dir = os.path.join(config.OUTPUT_DIR, "test_" + datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
+    output_dir = os.path.join(config.OUTPUT_DIR, "test")
     if not logger.isEnabledFor(logging.INFO):  # setup_logger is not called
         setup_logger(output=output_dir)
     logger.info(pprint.pformat(args))
     logger.info(config)
-
-    # cudnn related setting
-    cudnn.benchmark = config.CUDNN.BENCHMARK
-    cudnn.deterministic = config.CUDNN.DETERMINISTIC
-    cudnn.enabled = config.CUDNN.ENABLED
+    if torch.has_cudnn:
+        # cudnn related setting
+        cudnn.benchmark = config.CUDNN.BENCHMARK
+        cudnn.deterministic = config.CUDNN.DETERMINISTIC
+        cudnn.enabled = config.CUDNN.ENABLED
     gpus = list(config.TEST.GPUS)
     if len(gpus) > 1:
         raise ValueError('Test only supports single core.')
-    device = torch.device('cuda:{}'.format(gpus[0]))
-
+    device = torch.device('cuda:{}'.format(gpus[0])) if torch.has_cuda else torch.device('mps') if torch.has_mps else \
+    torch.device('cpu')
+    # device = torch.device('cpu')
+    logger.info(device)
     if args.opt_model:
         # load model
-        model = torch.load(args.opt_model, map_location='cpu')
+        model = torch.load(args.opt_model, map_location=torch.device('cpu'))
         logger.info(f"Load: {args.opt_model}")
     else:
         # build model
         model = build_segmentation_model_from_cfg(config)
 
-    # Change ASPP image pooling
-    output_stride = 2 ** (5 - sum(config.MODEL.BACKBONE.DILATION))
-    train_crop_h, train_crop_w = config.TEST.CROP_SIZE
-    scale = 1. / output_stride
-    pool_h = int((float(train_crop_h) - 1.0) * scale + 1.0)
-    pool_w = int((float(train_crop_w) - 1.0) * scale + 1.0)
-
-    model.set_image_pooling((pool_h, pool_w))
+    # # Change ASPP image pooling
+    # output_stride = 2 ** (5 - sum(config.MODEL.BACKBONE.DILATION))
+    # train_crop_h, train_crop_w = config.TEST.CROP_SIZE
+    # scale = 1. / output_stride
+    # pool_h = int((float(train_crop_h) - 1.0) * scale + 1.0)
+    # pool_w = int((float(train_crop_w) - 1.0) * scale + 1.0)
+    #
+    # model.set_image_pooling((pool_h, pool_w))
 
     logger.info("Model:\n{}".format(model))
     model = model.to(device)
@@ -101,7 +112,7 @@ def main():
 
     # optional update model weights
     if os.path.isfile(args.opt_weights):
-        model_weights = torch.load(args.opt_weights)
+        model_weights = torch.load(args.opt_weights, map_location=torch.device('cpu'))
         if 'state_dict' in model_weights.keys():
             model_weights = model_weights['state_dict']
             logger.info('Evaluating a intermediate checkpoint.')
@@ -209,7 +220,8 @@ def main():
                         pass
 
                 image = data.pop('image')
-                torch.cuda.synchronize(device)
+                if torch.has_cuda:
+                    torch.cuda.synchronize(device)
                 data_time.update(time.time() - start_time)
 
                 start_time = time.time()
@@ -219,7 +231,8 @@ def main():
                 else:
                     out_dict = model(image)
 
-                torch.cuda.synchronize(device)
+                if torch.has_cuda:
+                    torch.cuda.synchronize(device)
                 net_time.update(time.time() - start_time)
 
                 start_time = time.time()
@@ -266,7 +279,8 @@ def main():
                         foreground_mask=foreground_pred)
                 else:
                     panoptic_pred = None
-                torch.cuda.synchronize(device)
+                if torch.has_cuda:
+                    torch.cuda.synchronize(device)
                 post_time.update(time.time() - start_time)
                 logger.info('[{}/{}]\t'
                             'Data Time: {data_time.val:.3f}s ({data_time.avg:.3f}s)\t'
@@ -281,8 +295,10 @@ def main():
                     foreground_pred = foreground_pred.squeeze(0).cpu().numpy()
 
                 # Crop padded regions.
-                image_size = data['size'].squeeze(0).cpu().numpy()
-                semantic_pred = semantic_pred[:image_size[0], :image_size[1]]
+                # image_size = data['size'].squeeze(0).cpu().numpy()
+                image_size = image.shape
+                # semantic_pred = semantic_pred[:image_size[0], :image_size[1]]
+                semantic_pred = semantic_pred[:image_size[-2], :image_size[-1]]
                 if panoptic_pred is not None:
                     panoptic_pred = panoptic_pred[:image_size[0], :image_size[1]]
                 if foreground_pred is not None:
@@ -290,7 +306,8 @@ def main():
 
                 # Resize back to the raw image size.
                 raw_image_size = data['raw_size'].squeeze(0).cpu().numpy()
-                if raw_image_size[0] != image_size[0] or raw_image_size[1] != image_size[1]:
+                # if raw_image_size[0] != image_size[0] or raw_image_size[1] != image_size[1]:
+                if raw_image_size[0] != image_size[-2] or raw_image_size[1] != image_size[-1]:
                     semantic_pred = cv2.resize(semantic_pred.astype(float), (raw_image_size[1], raw_image_size[0]),
                                                interpolation=cv2.INTER_NEAREST).astype(np.int32)
                     if panoptic_pred is not None:
@@ -386,6 +403,9 @@ def main():
                         save_panoptic_annotation(panoptic_pred, debug_out_dir, 'panoptic_pred_%d' % i,
                                                  label_divisor=data_loader.dataset.label_divisor,
                                                  colormap=data_loader.dataset.create_label_colormap())
+                # semantic_results = semantic_metric.evaluate()
+                # logger.info(semantic_results)
+
     except Exception:
         logger.exception("Exception during testing:")
         raise

@@ -159,38 +159,38 @@ def save_debug_images(dataset, batch_images, batch_targets, batch_outputs, out_d
     if out_dir is not None:
         if is_train:
             pil_image = img.fromarray(grid_image.astype(dtype=np.uint8))
-            with open('%s/%s_%d.png' % (out_dir, 'debug_batch_images', iteration), mode='wb') as f:
+            with open(f'{out_dir}/{iteration}_debug_batch_images.png', mode='wb') as f:
                 pil_image.save(f, 'PNG')
             pil_image = img.fromarray(grid_target.astype(dtype=np.uint8))
-            with open('%s/%s_%d.png' % (out_dir, 'debug_batch_targets', iteration), mode='wb') as f:
+            with open(f'{out_dir}/{iteration}_debug_batch_targets.png', mode='wb') as f:
                 pil_image.save(f, 'PNG')
             pil_image = img.fromarray(grid_output.astype(dtype=np.uint8))
-            with open('%s/%s_%d.png' % (out_dir, 'debug_batch_outputs', iteration), mode='wb') as f:
+            with open(f'{out_dir}/{iteration}_debug_batch_outputs.png', mode='wb') as f:
                 pil_image.save(f, 'PNG')
         else:
             pil_image = img.fromarray(grid_image.astype(dtype=np.uint8))
-            with open('%s/%s_%d.png' % (out_dir, 'debug_test_images', iteration), mode='wb') as f:
+            with open(f'{out_dir}/{iteration}_debug_test_images.png', mode='wb') as f:
                 pil_image.save(f, 'PNG')
             if grid_target.size:
                 pil_image = img.fromarray(grid_target.astype(dtype=np.uint8))
-                with open('%s/%s_%d.png' % (out_dir, 'debug_test_targets', iteration), mode='wb') as f:
+                with open(f'{out_dir}/{iteration}_debug_batch_targets.png', mode='wb') as f:
                     pil_image.save(f, 'PNG')
             pil_image = img.fromarray(grid_output.astype(dtype=np.uint8))
-            with open('%s/%s_%d.png' % (out_dir, 'debug_test_outputs', iteration), mode='wb') as f:
+            with open(f'{out_dir}/{iteration}_debug_batch_outputs.png', mode='wb') as f:
                 pil_image.save(f, 'PNG')
 
     if is_train:
         if iteration_to_remove >= 0:
-            if os.path.exists('%s/%s_%d.png' % (out_dir, 'debug_batch_images', iteration_to_remove)):
-                os.remove('%s/%s_%d.png' % (out_dir, 'debug_batch_images', iteration_to_remove))
-            if os.path.exists('%s/%s_%d.png' % (out_dir, 'debug_batch_targets', iteration_to_remove)):
-                os.remove('%s/%s_%d.png' % (out_dir, 'debug_batch_targets', iteration_to_remove))
-            if os.path.exists('%s/%s_%d.png' % (out_dir, 'debug_batch_outputs', iteration_to_remove)):
-                os.remove('%s/%s_%d.png' % (out_dir, 'debug_batch_outputs', iteration_to_remove))
+            if os.path.exists(f'{out_dir}/{iteration_to_remove}_debug_batch_images.png'):
+                os.remove(f'{out_dir}/{iteration_to_remove}_debug_batch_images.png')
+            if os.path.exists(f'{out_dir}/{iteration_to_remove}_debug_batch_targets.png'):
+                os.remove(f'{out_dir}/{iteration_to_remove}_debug_batch_targets.png')
+            if os.path.exists(f'{out_dir}/{iteration_to_remove}_debug_batch_outputs.png'):
+                os.remove(f'{out_dir}/{iteration_to_remove}_debug_batch_outputs.png')
             # 0 is a special iter
-            if os.path.exists('%s/%s_%d.png' % (out_dir, 'debug_batch_images', 0)):
-                os.remove('%s/%s_%d.png' % (out_dir, 'debug_batch_images', 0))
-            if os.path.exists('%s/%s_%d.png' % (out_dir, 'debug_batch_targets', 0)):
-                os.remove('%s/%s_%d.png' % (out_dir, 'debug_batch_targets', 0))
-            if os.path.exists('%s/%s_%d.png' % (out_dir, 'debug_batch_outputs', 0)):
-                os.remove('%s/%s_%d.png' % (out_dir, 'debug_batch_outputs', 0))
+            if os.path.exists(f'{out_dir}/0_debug_batch_images.png'):
+                os.remove(f'{out_dir}/0_debug_batch_images.png')
+            if os.path.exists(f'{out_dir}/0_debug_batch_targets.png'):
+                os.remove(f'{out_dir}/0_debug_batch_targets.png')
+            if os.path.exists(f'{out_dir}/0_debug_batch_outputs.png'):
+                os.remove(f'{out_dir}/0_debug_batch_outputs.png')

@@ -41,7 +41,8 @@ def build_dataset_from_cfg(config, is_train=True):
             max_scale=config.DATASET.MAX_SCALE,
             scale_step_size=config.DATASET.SCALE_STEP_SIZE,
             mean=config.DATASET.MEAN,
-            std=config.DATASET.STD
+            std=config.DATASET.STD,
+            transform_to_use=config.DATASET.TRANSFORM_TO_USE
         ),
         'cityscapes_panoptic': dict(
             root=config.DATASET.ROOT,
@@ -59,7 +60,7 @@ def build_dataset_from_cfg(config, is_train=True):
             small_instance_area=config.DATASET.SMALL_INSTANCE_AREA,
             small_instance_weight=config.DATASET.SMALL_INSTANCE_WEIGHT,
             custom_frame_size=config.DATASET.PRE_AUG,
-            use_tf_transform=config.DATASET.USE_TF_TRANSFORM
+            transform_to_use=config.DATASET.TRANSFORM_TO_USE
         ),
         'coco_panoptic': dict(
             root=config.DATASET.ROOT,
@@ -78,7 +79,8 @@ def build_dataset_from_cfg(config, is_train=True):
             semantic_only=config.DATASET.SEMANTIC_ONLY,
             ignore_stuff_in_offset=config.DATASET.IGNORE_STUFF_IN_OFFSET,
             small_instance_area=config.DATASET.SMALL_INSTANCE_AREA,
-            small_instance_weight=config.DATASET.SMALL_INSTANCE_WEIGHT
+            small_instance_weight=config.DATASET.SMALL_INSTANCE_WEIGHT,
+            transform_to_use=config.DATASET.TRANSFORM_TO_USE
         ),
     }
 
@@ -173,6 +175,30 @@ def build_test_loader_from_cfg(config):
 
     return data_loader
 
+
+def build_analyze_loader_from_cfg(config):
+    """Builds dataloader from configuration file.
+    Args:
+        config: the configuration file.
+
+    Returns:
+        A torch Dataloader.
+    """
+    dataset = build_dataset_from_cfg(config, is_train=False)
+
+    sampler = samplers.InferenceSampler(len(dataset))
+    # Always use 1 image per worker during inference since this is the
+    # standard when reporting inference time in papers.
+    batch_sampler = torch.utils.data.sampler.BatchSampler(sampler, 1, drop_last=False)
+
+    data_loader = torch.utils.data.DataLoader(
+        dataset,
+        num_workers=config.DATALOADER.NUM_WORKERS,
+        batch_sampler=batch_sampler,
+        pin_memory=config.DATALOADER.PIN_MEMORY
+    )
+
+    return data_loader
 
 def worker_init_reset_seed(worker_id):
     seed_all_rng(np.random.randint(2 ** 31) + worker_id)

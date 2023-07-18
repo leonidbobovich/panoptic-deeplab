@@ -6,6 +6,7 @@
 # ------------------------------------------------------------------------------
 
 import os
+import sys
 import time
 import pprint
 import logging
@@ -131,11 +132,12 @@ def main():
     args.world_size = 1
     args.rank = 0  # global rank
     if torch.cuda and args.distributed:
-        args.device = 'cuda:%d' % args.local_rank
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
         args.world_size = torch.distributed.get_world_size()
         args.rank = torch.distributed.get_rank()
+        args.local_rank = args.rank
+        args.device = 'cuda:%d' % args.local_rank
         logger.info('Training in distributed mode with multiple processes, 1 GPU per process. Process %d, total %d.'
                     % (args.rank, args.world_size))
     else:
@@ -157,7 +159,7 @@ def main():
     model = model.to(args.device)
     if args.channels_last:
         model = model.to(memory_format=torch.channels_last)
-
+    logger.info(f'Local rank {args.local_rank}')
     if comm.get_world_size() > 1:
         model = DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank)
 
@@ -199,11 +201,11 @@ def main():
     if config.TRAIN.RESUME:
         model_state_file = os.path.join(output_dir, 'checkpoint.pth.tar')
         if os.path.isfile(model_state_file):
-            checkpoint = torch.load(model_state_file)
+            checkpoint = torch.load(model_state_file, map_location='cpu')
             start_iter = checkpoint['start_iter']
-            get_module(model, args.distributed).load_state_dict(checkpoint['state_dict'])
+            get_module(model, args.distributed).load_state_dict(checkpoint['state_dict'], strict=False)
             optimizer.load_state_dict(checkpoint['optimizer'])
-            lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
+            # lr_scheduler.load_state_dict(checkpoint['lr_scheduler'])
             logger.info('Loaded checkpoint (starting from iter {})'.format(checkpoint['start_iter']))
 
     data_time = AverageMeter()
@@ -215,18 +217,16 @@ def main():
         debug_out_dir = os.path.join(output_dir, 'debug_train')
         PathManager.mkdirs(debug_out_dir)
 
-    if config.CKPT_FREQ > 0:
-        model_out_dir = os.path.join(output_dir, 'models')
-        PathManager.mkdirs(model_out_dir)
-    # model.eval()
-    torch.onnx.export(model, input_names=['input'], f=os.path.join(output_dir,'model_initial.onnx'),
-                      args=torch.rand(1, 3, config.DATASET.CROP_SIZE[0], config.DATASET.CROP_SIZE[1]).to(args.device))
-    # onnx_model = onnx.load(os.path.join(output_dir,'model_initial.onnx'))
-    # onnx_model = onnxsim.simplify(model=onnx_model, skip_fuse_bn=True, overwrite_input_shapes={'input': [1, 3, 768, 1536]})
-    # onnx.save(onnx_model, onnx.os.path.join(output_dir,'model_sim_initial.onnx'))
-    # # logger.debug("Model:\n{}".format(model))
-
-    # model = model.to(args.device)
+    # if config.CKPT_FREQ > 0:
+    model_out_dir = os.path.join(output_dir, 'models')
+    PathManager.mkdirs(model_out_dir)
+    #model.eval()
+    onnx_dummy_image=torch.rand(1, 3, config.DATASET.CROP_SIZE[0], config.DATASET.CROP_SIZE[1])
+    model.cpu()
+    torch.onnx.export(get_module(model, args.distributed), input_names=['input'],
+                      f=os.path.join(output_dir,'model_initial.onnx'), args=onnx_dummy_image)
+    torch.save(obj=get_module(model, args.distributed), f=os.path.join(output_dir,'model_initial.pth'), _use_new_zipfile_serialization=False)
+    model.to(args.device)
     # Train loop.
     model.train()
     second_order = hasattr(optimizer, 'is_second_order') and optimizer.is_second_order
@@ -242,8 +242,8 @@ def main():
             image = data.pop('image')
             if args.channels_last:
                 image = image.contiguous(memory_format=torch.channels_last)
-            logger.info(f'Data: {data_time.val:.3f}s ({data_time.avg:.3f})s')
-            continue
+            # logger.info(f'Data: {data_time.val:.3f}s ({data_time.avg:.3f})s')
+            # continue
             with amp_autocast():
                 out_dict = model(image, data)
                 loss = out_dict['loss']
@@ -290,20 +290,32 @@ def main():
                         output_keys=config.DEBUG.OUTPUT_KEYS,
                         iteration_to_remove=i - config.DEBUG.KEEP_INTERVAL
                     )
-            if i == 0 or (i + 1) % config.CKPT_FREQ == 0:
+            if config.CKPT_FREQ > 0 and ( i == 0 or (i + 1) % config.CKPT_FREQ == 0 ):
                 if comm.is_main_process():
+                    model.cpu()
                     torch.save({
                         'start_iter': i + 1,
                         'state_dict': get_module(model, args.distributed).state_dict(),
                         'optimizer': optimizer.state_dict(),
                         'lr_scheduler': lr_scheduler.state_dict(),
-                    }, os.path.join(model_out_dir, f'checkpoint_{i+1}.pth.tar'))
+                    }, os.path.join(model_out_dir, f'checkpoint_{i+1}.pth.tar'), _use_new_zipfile_serialization=False)
+                    torch.save({
+                        'start_iter': i + 1,
+                        'state_dict': get_module(model, args.distributed).state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                        'lr_scheduler': lr_scheduler.state_dict(),
+                    }, os.path.join(output_dir, f'checkpoint.pth.tar'), _use_new_zipfile_serialization=False)
+                    # onnx_path = os.path.join(output_dir, f'model_{i+1}.onnx')
+                    # logger.info(f'Exporting {onnx_path}')
+                    # torch.onnx.export(get_module(model, args.distributed), input_names=['input'],
+                    #                   f=onnx_path, args=onnx_dummy_image )
+                    model.to(args.device)
     except Exception:
         logger.exception("Exception during training:")
         raise
     finally:
         if comm.is_main_process():
-            torch.save(get_module(model, args.distributed).state_dict(), os.path.join(output_dir, 'final_state.pth'))
+            torch.save(get_module(model, args.distributed).state_dict(), os.path.join(output_dir, 'final_state.pth'), _use_new_zipfile_serialization=False)
         logger.info("Training finished.")
 
 

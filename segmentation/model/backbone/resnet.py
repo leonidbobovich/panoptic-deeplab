@@ -2,7 +2,7 @@
 # Reference: https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
 # Modified by Bowen Cheng (bcheng9@illinois.edu)
 # ------------------------------------------------------------------------------
-
+import torch.nn
 import torch.nn as nn
 # from torchvision.models.utils import load_state_dict_from_url
 from torch.hub import load_state_dict_from_url
@@ -134,7 +134,7 @@ class ResNet(nn.Module):
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
 
-        self.inplanes = 64
+        self.inplanes = 48
         self.dilation = 1
         if replace_stride_with_dilation is None:
             # each element in the tuple indicates if we should replace
@@ -145,25 +145,32 @@ class ResNet(nn.Module):
                              "or a 3-element tuple, got {}".format(replace_stride_with_dilation))
         self.groups = groups
         self.base_width = width_per_group
-
-
         self.deep_stem = True
         self.stem = self._make_stem_layer(3, self.inplanes)
-        # self.conv1 = nn.Conv2d(3, self.inplanes, kernel_size=7, stride=2, padding=3,
-        #                        bias=False)
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
-                                       dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
-                                       dilate=replace_stride_with_dilation[1])
-        self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
-                                       dilate=replace_stride_with_dilation[2])
+        self.channels = {'stem' : self.inplanes}
+        # self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        # self.layer1 = self._make_layer(block, 64, layers[0])
+        # self.layer2 = self._make_layer(block, 128, layers[1], stride=2,
+        #                                dilate=replace_stride_with_dilation[0])
+        # self.layer3 = self._make_layer(block, 256, layers[2], stride=2,
+        #                                dilate=replace_stride_with_dilation[1])
+        # self.layer4 = self._make_layer(block, 512, layers[3], stride=2,
+        #                                dilate=replace_stride_with_dilation[2])
+
+        self.layers = torch.nn.Sequential()
+        width = self.inplanes
+        for  l in range(len(layers)):
+            dilate=(False if l == 0 else replace_stride_with_dilation[l-1])
+            stride=(1 if l == 0 else 2)
+            print(self.inplanes, dilate, width, layers[l])
+            self.layers.append(self._make_layer(block, width, layers[l], stride=2, dilate=dilate))
+            self.channels[f'res{l+2}'] = self.inplanes
+            width = width * 2
+        print(self.inplanes, width)
         # self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         # self.fc = nn.Linear(512 * block.expansion, num_classes)
-
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
@@ -185,17 +192,17 @@ class ResNet(nn.Module):
         """Make stem layer for ResNet."""
         layers = []
         if self.deep_stem:
-            layers.append(nn.Conv2d(in_channels, stem_channels // 2, kernel_size=3, stride=1, padding=1, bias=False))
-            layers.append(self._norm_layer(stem_channels // 2))
+            layers.append(nn.Conv2d(in_channels, stem_channels, kernel_size=3, stride=1, padding=1, bias=False))
+            layers.append(self._norm_layer(stem_channels))
             layers.append(nn.ReLU(inplace=True))
 
-            layers.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=1))
+            layers.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=0))
 
-            layers.append(nn.Conv2d(stem_channels // 2, stem_channels // 2, kernel_size=3, padding=1, bias=False))
-            layers.append(self._norm_layer(stem_channels // 2))
+            layers.append(nn.Conv2d(stem_channels, stem_channels, kernel_size=3, padding=1, bias=False))
+            layers.append(self._norm_layer(stem_channels))
             layers.append(nn.ReLU(inplace=True))
 
-            layers.append(nn.Conv2d(stem_channels // 2, stem_channels, kernel_size=3, padding=1, bias=False))
+            layers.append(nn.Conv2d(stem_channels, stem_channels, kernel_size=3, padding=1, bias=False))
             layers.append(self._norm_layer(stem_channels))
             layers.append(nn.ReLU(inplace=True))
         else:
@@ -203,7 +210,7 @@ class ResNet(nn.Module):
             layers.append(self._norm_layer(stem_channels))
             layers.append(nn.ReLU(inplace=True))
 
-        layers.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=1))
+        layers.append(nn.MaxPool2d(kernel_size=2, stride=2, padding=0))
         return nn.Sequential(*layers)
 
     def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
@@ -245,17 +252,21 @@ class ResNet(nn.Module):
         x = self.stem(x)
         outputs['stem'] = x
 
-        x = self.layer1(x)  # 1/4
-        outputs['res2'] = x
-
-        x = self.layer2(x)  # 1/8
-        outputs['res3'] = x
-
-        x = self.layer3(x)  # 1/16
-        outputs['res4'] = x
-
-        x = self.layer4(x)  # 1/32
-        outputs['res5'] = x
+        for l in range(len(self.layers)):
+            x = self.layers[l](x)
+            outputs[f'res{l+2}'] = x
+        #
+        # x = self.layer1(x)  # 1/4
+        # outputs['res2'] = x
+        #
+        # x = self.layer2(x)  # 1/8
+        # outputs['res3'] = x
+        #
+        # x = self.layer3(x)  # 1/16
+        # outputs['res4'] = x
+        #
+        # x = self.layer4(x)  # 1/32
+        # outputs['res5'] = x
 
         return outputs
 
@@ -302,6 +313,17 @@ def resnet50(pretrained=False, progress=True, **kwargs):
         progress (bool): If True, displays a progress bar of the download to stderr
     """
     return _resnet('resnet50', Bottleneck, [3, 4, 6, 3], pretrained, progress,
+                   **kwargs)
+
+
+def resnet50_new(pretrained=False, progress=True, **kwargs):
+    r"""ResNet-50 model from
+    `"Deep Residual Learning for Image Recognition" <https://arxiv.org/pdf/1512.03385.pdf>`_
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+        progress (bool): If True, displays a progress bar of the download to stderr
+    """
+    return _resnet('resnet50', Bottleneck, [3, 3, 3, 3], pretrained, progress,
                    **kwargs)
 
 

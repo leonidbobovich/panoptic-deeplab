@@ -48,6 +48,12 @@ class PanopticDeepLab(BaseSegmentationModel):
                  low_level_channels_project, decoder_channels, atrous_rates, num_classes,
                  semantic_loss, semantic_loss_weight, center_loss, center_loss_weight,
                  offset_loss, offset_loss_weight, **kwargs):
+
+        low_level_channels = [ max(backbone.channels[low_level_key[i]], 1) for i in range(len(low_level_key)) ]
+        low_level_channels_project = [ max( backbone.channels[low_level_key[i]], 1) for i in range(len(low_level_key)) ]
+        if kwargs.get('has_instance', False):
+            kwargs['instance_low_level_channels_project'] = [ max(backbone.channels[low_level_key[i]], 1) for i in range(len(low_level_key)) ]
+
         decoder = PanopticDeepLabDecoder(in_channels, feature_key, low_level_channels, low_level_key,
                                          low_level_channels_project, decoder_channels, atrous_rates, num_classes,
                                          **kwargs)

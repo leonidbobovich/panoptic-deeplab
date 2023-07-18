@@ -72,6 +72,7 @@ class SinglePanopticDeepLabDecoder(nn.Module):
             l = features[self.low_level_key[i]]
             l = self.project[i](l)
             # x = F.interpolate(x, size=l.size()[2:], mode='bilinear', align_corners=True)
+            #if x.shape[2:][0] != l.size()[2:][0] or x.shape[2:][1] != l.size()[2:][1]:
             x = F.interpolate(x, size=l.size()[2:])
             x = torch.cat((x, l), dim=1)
             x = self.fuse[i](x)
