@@ -7,7 +7,7 @@ do
      for qc in KLMinimization KLMinimizationV2 MSE SQNR  None  Percentile
       do
         [ "$qc" == "Percentile" ] && qc="${qc} -percentile-calibration-value=99.9950  "
-        profiling/test_new.sh $1 "-quantization-calibration=${qc} -quantization-schema-constants=$qs -quantization-schema-activations=$as"
+        profiling/test.new.sh $1 "-quantization-calibration=${qc} -quantization-schema-constants=$qs -quantization-schema-activations=$as"
       done
   done
 done
